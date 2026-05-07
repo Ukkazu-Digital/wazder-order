@@ -1,0 +1,158 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use Illuminate\Http\Request;
+use App\Models\Product;
+use App\Models\Order;
+use App\Models\OrderDetail;
+use App\Models\Customer;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
+
+class OrderController extends Controller
+{
+    /**
+     * Menampilkan Halaman Katalog & Order
+     */
+    public function index($encoded_trx = null)
+    {
+        // Dekode ID Transaksi dari URL (Base64)
+        $transaction_id = $encoded_trx ? base64_decode($encoded_trx) : 'TRX-' . strtoupper(Str::random(6));
+
+        // Ambil produk yang aktif
+        $products = Product::where('is_active', true)->orderBy('name', 'asc')->get();
+
+        return view('order.index', compact('products', 'transaction_id'));
+    }
+
+    /**
+     * Menyimpan Pesanan Baru
+     */
+    public function store(Request $request)
+    {
+        // 1. Validasi Input
+        $request->validate([
+            'nama' => 'required|string|max:255',
+            'wa' => 'required|string|max:20',
+            'alamat' => 'string',
+            'kode_pesanan' => 'required|string',
+            'cart' => 'required|array', // Data JSON dari frontend
+        ]);
+
+        try {
+            // Gunakan Transaction agar jika satu gagal, semua batal (Rollback)
+            return DB::transaction(function () use ($request) {
+                
+                // 2. Cek/Simpan Data Pelanggan (Gunakan nomor WA sebagai unik)
+                $customer = Customer::updateOrCreate(
+                    ['customers_name' => $request->nama], // Sesuaikan logic unik Anda
+                    [
+                        'address' => $request->alamat,
+                        'updated_at' => now()
+                    ]
+                );
+
+                // 3. Buat Header Order
+                $order = new Order();
+                $order->order_code = $request->kode_pesanan;
+                $order->customer_id = $customer->id;
+                $order->total_price = 0; // Akan diupdate setelah hitung detail
+                $order->status = 'pending';
+                $order->save();
+
+                $totalBelanja = 0;
+
+                // 4. Simpan Detail Order & Update Stok
+                foreach ($request->cart as $id => $item) {
+                    $product = Product::findOrFail($id);
+
+                    // Validasi stok di sisi server (Security Check)
+                    if ($product->stock < $item['qty']) {
+                        throw new \Exception("Stok produk {$product->name} tidak mencukupi.");
+                    }
+
+                    $subtotal = $product->price * $item['qty'];
+                    $totalBelanja += $subtotal;
+
+                    // Simpan ke OrderDetail
+                    OrderDetail::create([
+                        'order_id' => $order->id,
+                        'product_id' => $product->id,
+                        'qty' => $item['qty'],
+                        'buy_price' => $product->price,
+                        'subtotal' => $subtotal
+                    ]);
+
+                    // Kurangi Stok Produk
+                    $product->decrement('stock', $item['qty']);
+                }
+
+                // 5. Update Total Harga di Header Order
+                $order->update(['total_price' => $totalBelanja]);
+
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Pesanan berhasil disimpan!',
+                    'order_id' => $order->order_code
+                ]);
+            });
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal membuat pesanan: ' . $e->getMessage()
+            ], 422);
+        }
+    }
+
+    private function sendWhatsAppNotification($data)
+    {
+        $itemsText = "";
+        foreach ($data['items'] as $item) {
+            $itemsText .= "- " . $item->product->name . " (x" . $item->qty . ")\n";
+        }
+
+        // Kode pesanan di-encode untuk tombol dinamis
+        $encodedCode = base64_encode($data['order_code']);
+
+        // Payload untuk WhatsApp Business API (Contoh menggunakan Cloud API)
+        $payload = [
+            'messaging_product' => 'whatsapp',
+            'to' => $data['phone'],
+            'type' => 'template',
+            'template' => [
+                'name' => 'konfirmasi_pesanan_baru', // Nama template yang Anda daftarkan
+                'language' => ['code' => 'id'],
+                'components' => [
+                    [
+                        'type' => 'body',
+                        'parameters' => [
+                            ['type' => 'text', 'text' => $data['order_code']], // {{1}}
+                            ['type' => 'text', 'text' => $itemsText],         // {{2}}
+                            ['type' => 'text', 'text' => 'Rp ' . number_format($data['total'], 0, ',', '.')], // {{3}}
+                        ]
+                    ],
+                    [
+                        'type' => 'button',
+                        'sub_type' => 'url',
+                        'index' => '0', // Indeks tombol pertama
+                        'parameters' => [
+                            ['type' => 'text', 'text' => $encodedCode] // Ini akan menyambung ke Base URL status
+                        ]
+                    ]
+                ]
+            ]
+        ];
+
+        return Http::withToken('YOUR_ACCESS_TOKEN')
+            ->post('https://graph.facebook.com/v17.0/YOUR_PHONE_NUMBER_ID/messages', $payload);
+    }
+
+    public function track($encoded_trx = null)
+    {
+        $transaction_id = $encoded_trx ? base64_decode($encoded_trx) : 'TRX-' . strtoupper(Str::random(6));
+        $order = OrderDetail::where('is_active', true)->orderBy('name', 'asc')->get();
+        return view('order.track', compact('transaction_id', 'order'));
+    }
+}
