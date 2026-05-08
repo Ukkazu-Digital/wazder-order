@@ -9,9 +9,23 @@ use App\Models\OrderDetail;
 use App\Models\Customer;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Http;
 
 class OrderController extends Controller
 {
+    private $token;
+    private $phoneId;
+    private $apiUrl;
+
+    public function __construct()
+    {
+        $this->token = env('WHATSAPP_TOKEN');
+        $this->phoneId = env('WHATSAPP_PHONE_NUMBER_ID');
+        $this->apiUrl = "https://graph.facebook.com/v25.0/{$this->phoneId}/messages";
+    }
+
     /**
      * Menampilkan Halaman Katalog & Order
      */
@@ -145,8 +159,30 @@ class OrderController extends Controller
             ]
         ];
 
-        return Http::withToken('YOUR_ACCESS_TOKEN')
-            ->post('https://graph.facebook.com/v17.0/YOUR_PHONE_NUMBER_ID/messages', $payload);
+        $response = Http::withToken($this->token)->post($this->apiUrl, $payload);
+
+        if ($response->successful()) {
+            Log::info("API Meta SUCCESS mengirim template ke " . $payload['to']);
+            
+            // Simpan outbound ke DB
+            DB::table('messages')->insert([
+                'msg_id' => data_get($response->json(), 'messages.0.id'),
+                'contact_wa_id' => $payload['to'],
+                'direction' => 'outbound',
+                'type' => 'template',
+                'body' => $bodyContent,
+                'status' => 'sent',
+                'timestamp_unix' => time(),
+                'created_at' => Carbon::now(),
+            ]);
+        } else {
+            Log::error("API Meta FAILED mengirim template", [
+                'response' => $response->json(),
+                'payload' => $payload
+            ]);
+        }
+
+        return $response->json();
     }
 
     public function track($encoded_trx = null)
