@@ -94,13 +94,13 @@
                 @csrf
                 <input type="hidden" name="kode_pesanan" value="{{ $transaction_id }}">
                 
-                <input type="text" name="nama" placeholder="Nama Lengkap" required 
+                <input type="text" name="nama" value="{{ $customers['nama'] }}" placeholder="Nama Lengkap" required 
                     class="w-full p-4 border border-gray-100 rounded-2xl shadow-sm focus:ring-2 focus:ring-blue-500 outline-none">
                 
-                <input type="tel" name="wa" placeholder="No. WhatsApp" required 
-                    class="w-full p-4 border border-gray-100 rounded-2xl shadow-sm focus:ring-2 focus:ring-blue-500 outline-none">
+                <input type="tel" name="wa" value="{{ $customers['wa'] }}" placeholder="No. WhatsApp" required 
+                    class="w-full p-4 border border-gray-100 rounded-2xl shadow-sm focus:ring-2 focus:ring-blue-500 outline-none" readonly>
                 
-                <textarea name="alamat" rows="3" placeholder="Alamat Lengkap" required
+                <textarea name="alamat" rows="3" value="{{ $customers['alamat'] }}" placeholder="Alamat Lengkap" required
                     class="w-full p-4 border border-gray-100 rounded-2xl shadow-sm focus:ring-2 focus:ring-blue-500 outline-none"></textarea>
             </form>
         </section>

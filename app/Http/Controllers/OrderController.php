@@ -7,6 +7,9 @@ use App\Models\Product;
 use App\Models\Order;
 use App\Models\OrderDetail;
 use App\Models\Customer;
+use App\Models\Contact;
+use App\Models\LinkOrder;
+use App\Models\ShippingAddress;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Support\Carbon;
@@ -34,10 +37,27 @@ class OrderController extends Controller
         // Dekode ID Transaksi dari URL (Base64)
         $transaction_id = $encoded_trx ? base64_decode($encoded_trx) : 'TRX-' . strtoupper(Str::random(6));
 
+        // Ambil data konsumen
+        $getLinkData = LinkOrder::leftJoin('contacts','contacts.wa_id','=','link_order.wa_id')->leftJoin('customers','customers.id','=','contacts.customer_id')->where('kode_pesanan', $transaction_id)->first();
+        if($getLinkData->customer_id == null){
+            $customers = [
+                'nama' => $getLinkData->name,
+                'wa' => $getLinkData->wa_id,
+                'alamat' => $getLinkData->address
+            ];
+        }else{
+            $customers = [
+                'nama' => $getLinkData->customers_name,
+                'wa' => $getLinkData->wa_id,
+                'alamat' => $getLinkData->address
+            ];
+        }
+
+
         // Ambil produk yang aktif
         $products = Product::where('is_active', true)->orderBy('name', 'asc')->get();
 
-        return view('order.index', compact('products', 'transaction_id'));
+        return view('order.index', compact('products', 'transaction_id', 'customers'));
     }
 
     /**
@@ -60,12 +80,18 @@ class OrderController extends Controller
                 
                 // 2. Cek/Simpan Data Pelanggan (Gunakan nomor WA sebagai unik)
                 $customer = Customer::updateOrCreate(
-                    ['customers_name' => $request->nama], // Sesuaikan logic unik Anda
+                    ['wa_id' => $request->wa], // Sesuaikan logic unik Anda
                     [
+                        'customers_name' => $request->nama,
                         'address' => $request->alamat,
                         'updated_at' => now()
                     ]
                 );
+
+                $contact = Contact::where('wa_id', $request->wa)->first();
+                if($contact->customer_id == null){
+                    $contact->update(['customer_id' => $customer->id]);
+                }
 
                 // 3. Buat Header Order
                 $order = new Order();
@@ -104,6 +130,12 @@ class OrderController extends Controller
 
                 // 5. Update Total Harga di Header Order
                 $order->update(['total_price' => $totalBelanja]);
+
+                // 6. Insert ke tabel alamat pengiriman
+                ShippingAddress::insert([
+                    'order_id' => $order->id,
+                    'address' => $request->alamat
+                ]);
 
                 return response()->json([
                     'success' => true,
@@ -190,5 +222,10 @@ class OrderController extends Controller
         $transaction_id = $encoded_trx ? base64_decode($encoded_trx) : 'TRX-' . strtoupper(Str::random(6));
         $order = OrderDetail::where('is_active', true)->orderBy('name', 'asc')->get();
         return view('order.track', compact('transaction_id', 'order'));
+    }
+
+    private function checkExistCustomer($waId)
+    {
+
     }
 }
