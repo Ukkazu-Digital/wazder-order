@@ -88,9 +88,13 @@ class OrderController extends Controller
                 );
 
                 $contact = Contact::where('wa_id', $request->wa)->first();
-                if($contact->customer_id == null){
+
+            if ($contact) {
+                // Update customer_id jika memang belum ada
+                if ($contact->customer_id == null) {
                     $contact->update(['customer_id' => $customer->id]);
                 }
+            }
 
                 // 3. Buat Header Order
                 $order = new Order();

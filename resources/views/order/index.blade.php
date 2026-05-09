@@ -204,7 +204,7 @@
                     alert(res.message);
                 }
             } catch (err) {
-                alert("Koneksi gagal");
+                alert("Koneksi gagal "+err);
             } finally {
                 btn.disabled = false;
                 btn.innerText = "Pesan Sekarang";
