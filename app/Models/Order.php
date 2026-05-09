@@ -13,4 +13,29 @@ class Order extends Model
 
     protected $table = 'orders';
     protected $fillable = ['order_code','customer_id','total_price','status','notes'];
+
+    /**
+     * Relasi ke Customer (Satu Order dimiliki oleh satu Customer)
+     */
+    public function customer()
+    {
+        return $this->belongsTo(Customer::class, 'customer_id');
+    }
+
+    /**
+     * Relasi ke OrderDetail (Satu Order memiliki banyak Detail/Produk)
+     * Ini yang digunakan di fungsi sendWhatsAppNotification
+     */
+    public function details()
+    {
+        return $this->hasMany(OrderDetail::class, 'order_id');
+    }
+
+    /**
+     * Relasi ke ShippingAddress (Satu Order memiliki satu alamat pengiriman)
+     */
+    public function shippingAddress()
+    {
+        return $this->hasOne(ShippingAddress::class, 'order_id');
+    }
 }

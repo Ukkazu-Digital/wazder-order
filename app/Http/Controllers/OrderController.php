@@ -76,7 +76,7 @@ class OrderController extends Controller
 
         try {
             // Gunakan Transaction agar jika satu gagal, semua batal (Rollback)
-            return DB::transaction(function () use ($request) {
+            $result = DB::transaction(function () use ($request) {
                 
                 // 2. Cek/Simpan Data Pelanggan (Gunakan nomor WA sebagai unik)
                 $customer = Customer::updateOrCreate(
@@ -140,12 +140,27 @@ class OrderController extends Controller
                     'address' => $request->alamat
                 ]);
 
-                return response()->json([
-                    'success' => true,
-                    'message' => 'Pesanan berhasil disimpan!',
-                    'order_id' => $order->order_code
-                ]);
+                // return response()->json([
+                //     'success' => true,
+                //     'message' => 'Pesanan berhasil disimpan!',
+                //     'order_id' => $order->order_code
+                // ]);
+                // Kembalikan data yang diperlukan untuk WA
+                return [
+                    'order_code' => $order->order_code,
+                    'phone' => $request->wa,
+                    'total' => $totalBelanja,
+                    'items' => $order->details()->with('product')->get() // Pastikan relasi 'details' ada
+                ];
             });
+
+            $this->sendWhatsAppNotification($result);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Pesanan berhasil disimpan dan notifikasi telah dikirim!',
+                'order_id' => $result['order_code']
+            ]);
 
         } catch (\Exception $e) {
             return response()->json([
@@ -164,14 +179,14 @@ class OrderController extends Controller
 
         // Kode pesanan di-encode untuk tombol dinamis
         $encodedCode = base64_encode($data['order_code']);
-
+        $bodyContent = "Pesanan {$data['order_code']} berhasil. Total: Rp " . number_format($data['total'], 0, ',', '.');
         // Payload untuk WhatsApp Business API (Contoh menggunakan Cloud API)
         $payload = [
             'messaging_product' => 'whatsapp',
             'to' => $data['phone'],
             'type' => 'template',
             'template' => [
-                'name' => 'konfirmasi_pesanan_baru', // Nama template yang Anda daftarkan
+                'name' => 'pesanan_sukses', // Nama template yang Anda daftarkan
                 'language' => ['code' => 'id'],
                 'components' => [
                     [
@@ -227,8 +242,4 @@ class OrderController extends Controller
         return view('order.track', compact('transaction_id', 'order'));
     }
 
-    private function checkExistCustomer($waId)
-    {
-
-    }
 }
