@@ -13,4 +13,10 @@ class Customer extends Model
 
     protected $table = 'customers';
     protected $fillable = ['customers_name','address','latitude','longtitude','updated_by'];
+
+    public function orders()
+    {
+        // Satu pelanggan bisa punya banyak pesanan
+        return $this->hasMany(Order::class, 'customer_id');
+    }
 }

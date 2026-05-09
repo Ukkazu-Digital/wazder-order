@@ -10,4 +10,13 @@ class Product extends Model
 {
     use HasFactory;
     use SoftDeletes;
+
+    protected $table = 'products';
+    protected $fillable = ['name','price','stock','image','is_active'];
+
+    public function orderDetails()
+    {
+        // Satu produk bisa muncul di banyak detail pesanan
+        return $this->hasMany(OrderDetail::class, 'product_id');
+    }
 }

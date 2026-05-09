@@ -13,4 +13,15 @@ class OrderDetail extends Model
 
     protected $table = 'order_details';
     protected $fillable = ['order_id','product_id','qty','buy_price','subtotal'];
+
+    public function product()
+    {
+        // Pastikan 'product_id' adalah nama kolom foreign key di tabel order_details
+        return $this->belongsTo(Product::class, 'product_id');
+    }
+
+    public function order()
+    {
+        return $this->belongsTo(Order::class, 'order_id');
+    }
 }
