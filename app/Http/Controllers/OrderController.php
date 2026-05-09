@@ -80,11 +80,10 @@ class OrderController extends Controller
                 
                 // 2. Cek/Simpan Data Pelanggan (Gunakan nomor WA sebagai unik)
                 $customer = Customer::updateOrCreate(
-                    ['wa_id' => $request->wa], // Sesuaikan logic unik Anda
+                    ['customers_wa_id' => $request->wa], // Sesuaikan logic unik Anda
                     [
                         'customers_name' => $request->nama,
-                        'address' => $request->alamat,
-                        'updated_at' => now()
+                        'address' => $request->alamat
                     ]
                 );
 
