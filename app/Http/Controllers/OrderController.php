@@ -38,21 +38,32 @@ class OrderController extends Controller
         $transaction_id = $encoded_trx ? base64_decode($encoded_trx) : 'TRX-' . strtoupper(Str::random(6));
 
         // Ambil data konsumen
-        $getLinkData = LinkOrder::leftJoin('contacts','contacts.wa_id','=','link_order.wa_id')->leftJoin('customers','customers.id','=','contacts.customer_id')->where('kode_pesanan', $transaction_id)->first();
-        if($getLinkData->customer_id == null){
+        $getLinkData = LinkOrder::leftJoin('contacts', 'contacts.wa_id', '=', 'link_order.wa_id')
+            ->leftJoin('customers', 'customers.id', '=', 'contacts.customer_id')
+            ->where('kode_pesanan', $transaction_id)
+            ->first();
+
+        if ($getLinkData) {
+            if ($getLinkData->customer_id == null) {
+                $customers = [
+                    'nama' => $getLinkData->name,
+                    'wa' => $getLinkData->wa_id,
+                    'alamat' => $getLinkData->address
+                ];
+            } else {
+                $customers = [
+                    'nama' => $getLinkData->customers_name,
+                    'wa' => $getLinkData->wa_id,
+                    'alamat' => $getLinkData->address
+                ];
+            }
+        } else {
             $customers = [
-                'nama' => $getLinkData->name,
-                'wa' => $getLinkData->wa_id,
-                'alamat' => $getLinkData->address
-            ];
-        }else{
-            $customers = [
-                'nama' => $getLinkData->customers_name,
-                'wa' => $getLinkData->wa_id,
-                'alamat' => $getLinkData->address
+                'nama' => '',
+                'wa' => '',
+                'alamat' => ''
             ];
         }
-
 
         // Ambil produk yang aktif
         $products = Product::where('is_active', true)->orderBy('name', 'asc')->get();
@@ -77,48 +88,72 @@ class OrderController extends Controller
         try {
             // Gunakan Transaction agar jika satu gagal, semua batal (Rollback)
             $result = DB::transaction(function () use ($request) {
-                
-                // 2. Cek/Simpan Data Pelanggan (Gunakan nomor WA sebagai unik)
-                $customer = Customer::updateOrCreate(
-                    ['customers_wa_id' => $request->wa], // Sesuaikan logic unik Anda
-                    [
-                        'customers_name' => $request->nama,
-                        'address' => $request->alamat
-                    ]
-                );
-
-            //     $contact = Contact::where('wa_id', $request->wa)->first();
-
-            // if ($contact) {
-            //     // Update customer_id jika memang belum ada
-            //     if ($contact->customer_id == null) {
-            //         $contact->update(['customer_id' => $customer->id]);
-            //     }
-            // }
+                $contact = Contact::where('wa_id', $request->wa)->first();
+                if ($contact && $contact->customer_id) {
+                    $customer = Customer::find($contact->customer_id);
+                    if ($customer) {
+                        $customer->update([
+                            'customers_name' => $request->nama,
+                            'address' => $request->alamat
+                        ]);
+                    } else {
+                        $customer = Customer::create([
+                            'customers_wa_id' => $request->wa,
+                            'customers_name' => $request->nama,
+                            'address' => $request->alamat
+                        ]);
+                        $contact->update(['customer_id' => $customer->id]);
+                    }
+                } else {
+                    $customer = Customer::where('customers_wa_id', $request->wa)->first();
+                    if ($customer) {
+                        $customer->update([
+                            'customers_name' => $request->nama,
+                            'address' => $request->alamat
+                        ]);
+                    } else {
+                        $customer = Customer::create([
+                            'customers_wa_id' => $request->wa,
+                            'customers_name' => $request->nama,
+                            'address' => $request->alamat
+                        ]);
+                    }
+                    if ($contact) {
+                        $contact->update(['customer_id' => $customer->id]);
+                    } else {
+                        Contact::create([
+                            'wa_id' => $request->wa,
+                            'customer_id' => $customer->id
+                        ]);
+                    }
+                }
 
                 // 3. Buat Header Order
                 $order = new Order();
                 $order->order_code = $request->kode_pesanan;
                 $order->customer_id = $customer->id;
-                $order->total_price = 0; // Akan diupdate setelah hitung detail
+                $order->total_price = 0;
                 $order->status = 'pending';
                 $order->save();
 
+                // Catat history order baru
+                DB::table('order_histories')->insert([
+                    'order_id' => $order->id,
+                    'status' => 'pending',
+                    'note' => 'Pesanan dibuat',
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+
                 $totalBelanja = 0;
 
-                // 4. Simpan Detail Order & Update Stok
                 foreach ($request->cart as $id => $item) {
                     $product = Product::findOrFail($id);
-
-                    // Validasi stok di sisi server (Security Check)
                     if ($product->stock < $item['qty']) {
                         throw new \Exception("Stok produk {$product->name} tidak mencukupi.");
                     }
-
                     $subtotal = $product->price * $item['qty'];
                     $totalBelanja += $subtotal;
-
-                    // Simpan ke OrderDetail
                     OrderDetail::create([
                         'order_id' => $order->id,
                         'product_id' => $product->id,
@@ -126,31 +161,22 @@ class OrderController extends Controller
                         'buy_price' => $product->price,
                         'subtotal' => $subtotal
                     ]);
-
-                    // Kurangi Stok Produk
                     $product->decrement('stock', $item['qty']);
                 }
 
-                // 5. Update Total Harga di Header Order
                 $order->update(['total_price' => $totalBelanja]);
 
-                // 6. Insert ke tabel alamat pengiriman
                 ShippingAddress::insert([
                     'order_id' => $order->id,
                     'address' => $request->alamat
                 ]);
 
-                // return response()->json([
-                //     'success' => true,
-                //     'message' => 'Pesanan berhasil disimpan!',
-                //     'order_id' => $order->order_code
-                // ]);
-                // Kembalikan data yang diperlukan untuk WA
+                $items = OrderDetail::with('product')->where('order_id', $order->id)->get();
                 return [
                     'order_code' => $order->order_code,
                     'phone' => $request->wa,
                     'total' => $totalBelanja,
-                    'items' => $order->details()->with('product')->get() // Pastikan relasi 'details' ada
+                    'items' => $items
                 ];
             });
 
@@ -238,7 +264,12 @@ class OrderController extends Controller
     public function track($encoded_trx = null)
     {
         $transaction_id = $encoded_trx ? base64_decode($encoded_trx) : 'TRX-' . strtoupper(Str::random(6));
-        $order = OrderDetail::where('is_active', true)->orderBy('name', 'asc')->get();
+        // Ambil order beserta history berdasarkan kode pesanan
+        $order = Order::where('order_code', $transaction_id)
+            ->with(['details.product', 'customer', 'shippingAddress', 'histories' => function($q) {
+                $q->orderBy('created_at', 'asc');
+            }])
+            ->first();
         return view('order.track', compact('transaction_id', 'order'));
     }
 
