@@ -189,6 +189,9 @@ class OrderController extends Controller
             ]);
 
         } catch (\Exception $e) {
+            Log::error("Gagal membuat pesanan: " . $e->getMessage(), [
+                'request' => $request->all()
+            ]);
             return response()->json([
                 'success' => false,
                 'message' => 'Gagal membuat pesanan: ' . $e->getMessage()
@@ -200,8 +203,9 @@ class OrderController extends Controller
     {
         $itemsText = "";
         foreach ($data['items'] as $item) {
-            $itemsText .= "- " . $item->product->name . " (x" . $item->qty . ")\n";
+            $itemsText .= $item->product->name . " (x" . $item->qty . "), ";
         }
+        $itemsText = rtrim($itemsText, ", "); // Menghapus koma dan spasi di akhir
 
         // Kode pesanan di-encode untuk tombol dinamis
         $encodedCode = base64_encode($data['order_code']);
