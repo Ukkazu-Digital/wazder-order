@@ -38,4 +38,9 @@ class Order extends Model
     {
         return $this->hasOne(ShippingAddress::class, 'order_id');
     }
+
+    public function histories()
+    {
+        return $this->hasMany(OrderHistory::class, 'order_id');
+    }
 }

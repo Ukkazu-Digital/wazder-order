@@ -41,7 +41,7 @@
                 </div>
                 <div class="text-right">
                     <p class="text-[10px] text-blue-200 uppercase">Estimasi Tiba</p>
-                    <p class="text-sm font-bold">Sore Ini</p>
+                    <p class="text-sm font-bold">-</p>
                 </div>
             </div>
         </section>
@@ -72,7 +72,7 @@
                     <div class="w-8 h-8 rounded-full {{ in_array($order->status, ['shipped','completed']) ? 'bg-blue-600 shadow-lg shadow-blue-200' : 'bg-gray-200' }} flex items-center justify-center text-white text-xs z-10 border-4 border-white">🚚</div>
                     <div>
                         <p class="text-sm font-bold {{ in_array($order->status, ['shipped','completed']) ? '' : 'text-gray-300' }}">Sedang Dikirim</p>
-                        <p class="text-xs text-gray-400">Kurir sedang menuju lokasi Anda</p>
+                        <p class="text-xs text-gray-400">{{ in_array($order->status, ['shipped','completed']) ? 'Kurir sedang menuju lokasi Anda' : '' }}</p>
                     </div>
                 </div>
             </div>
@@ -81,7 +81,7 @@
         <section class="bg-white rounded-3xl p-6 shadow-sm border border-gray-100">
             <h3 class="text-sm font-bold text-gray-400 uppercase tracking-widest mb-4">Rincian Barang</h3>
             <div class="space-y-4">
-                @foreach($order->orderDetails as $detail)
+                @foreach($order->details as $detail)
                 <div class="flex justify-between items-center text-sm">
                     <div class="flex-1">
                         <p class="font-bold text-gray-800">{{ $detail->product->name }}</p>

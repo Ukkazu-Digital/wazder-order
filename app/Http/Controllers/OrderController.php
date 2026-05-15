@@ -273,7 +273,7 @@ class OrderController extends Controller
             ->with(['details.product', 'customer', 'shippingAddress', 'histories' => function($q) {
                 $q->orderBy('created_at', 'asc');
             }])
-            ->first();
+            ->firstOrFail();
         return view('order.track', compact('transaction_id', 'order'));
     }
 
