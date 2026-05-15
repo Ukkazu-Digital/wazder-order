@@ -86,6 +86,8 @@ Route::middleware(['web'])
         Route::get('chats', [ChatController::class, 'index'])->name('chats.index');
         Route::get('chats/{contact_wa_id}', [ChatController::class, 'show'])->name('chats.show');
         Route::post('chats/{contact_wa_id}/send', [ChatController::class, 'send'])->name('chats.send');
+        Route::get('chats/{contact_wa_id}/refresh', [ChatController::class, 'refresh'])->name('chats.refresh');
+        Route::post('chats/{contact_wa_id}/complete-case', [ChatController::class, 'completeCase'])->name('chats.complete-case');
     });
 
 // Route admin dashboard utama
