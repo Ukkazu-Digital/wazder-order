@@ -41,6 +41,7 @@ class OrderController extends Controller
         $getLinkData = LinkOrder::leftJoin('contacts', 'contacts.wa_id', '=', 'link_order.wa_id')
             ->leftJoin('customers', 'customers.id', '=', 'contacts.customer_id')
             ->where('kode_pesanan', $transaction_id)
+            ->where('link_order.expired_at', '>', Carbon::now())
             ->firstOrFail();
 
         if ($getLinkData) {
