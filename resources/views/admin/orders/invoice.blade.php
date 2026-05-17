@@ -6,7 +6,8 @@
     /* Styling Tampilan Layar (Desktop/Tablet) */
     .receipt-container { 
         display: flex; 
-        justify-content: center; 
+        flex-direction: column; /* Mengubah ke column agar alert bisa berada di atas struk */
+        align-items: center; 
         padding: 24px 0; 
         background: #f4f6f9; 
         min-height: 100vh;
@@ -81,6 +82,24 @@
 </style>
 
 <div class="receipt-container">
+
+    <!-- Alert Notifikasi (Disembunyikan saat dicetak) -->
+    <div class="no-print" style="width: 320px; margin-bottom: 15px;">
+        @if(session('error'))
+            <div class="alert alert-danger alert-dismissible fade show p-2 small mb-2" role="alert">
+                <i class="bi bi-exclamation-triangle-fill me-1"></i> {{ session('error') }}
+                <button type="button" class="btn-close p-2 small" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        @endif
+
+        @if(session('success'))
+            <div class="alert alert-success alert-dismissible fade show p-2 small mb-2" role="alert">
+                <i class="bi bi-check-circle-fill me-1"></i> {{ session('success') }}
+                <button type="button" class="btn-close p-2 small" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        @endif
+    </div>
+
     <div class="receipt">
         <!-- Header Toko -->
         <div class="receipt-header">
