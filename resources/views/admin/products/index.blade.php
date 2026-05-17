@@ -1,61 +1,177 @@
 @extends('layouts.app')
 
 @section('content')
+<!-- Import Font Modern & Icons -->
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+
+<style>
+    body {
+        font-family: 'Plus Jakarta Sans', sans-serif;
+        background-color: #f8f9fa;
+    }
+    .card-table-wrapper {
+        background: #ffffff;
+        border: 1px solid #eef0f3;
+        border-radius: 16px;
+        box-shadow: 0 4px 24px rgba(0, 0, 0, 0.02);
+        padding: 24px;
+    }
+    /* Style DataTables agar menyatu dengan card */
+    .dataTables_wrapper .dataTables_length select,
+    .dataTables_wrapper .dataTables_filter input {
+        border: 1px solid #e2e8f0;
+        border-radius: 10px;
+        padding: 6px 12px;
+        font-size: 14px;
+    }
+    .dataTables_wrapper .dataTables_filter input:focus {
+        outline: none;
+        border-color: #3b82f6;
+        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    }
+    .table thead th {
+        font-weight: 600;
+        text-transform: uppercase;
+        font-size: 12px;
+        letter-spacing: 0.5px;
+        color: #64748b;
+        background-color: #f8fafc;
+        border-bottom: 2px solid #edf2f7;
+        padding: 14px 16px;
+    }
+    .table tbody td {
+        padding: 16px;
+        font-size: 14px;
+        color: #334155;
+        border-bottom: 1px solid #f1f5f9;
+    }
+    .table-hover tbody tr:hover {
+        background-color: #f8fafc;
+    }
+    .badge-status {
+        padding: 6px 12px;
+        border-radius: 8px;
+        font-weight: 600;
+        font-size: 12px;
+    }
+    .btn-action {
+        width: 32px;
+        height: 32px;
+        padding: 0;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 8px;
+        transition: all 0.2s;
+    }
+</style>
+
 <div class="container py-4">
+    <!-- Header Page -->
     <div class="d-flex justify-content-between align-items-center mb-4">
-        <h1 class="fw-bold">Manajemen Produk</h1>
-        <a href="{{ route('admin.products.create') }}" class="btn btn-primary">
-            <i class="bi bi-plus-circle"></i> Tambah Produk
+        <div>
+            <h2 class="fw-bold text-dark mb-1">Manajemen Produk</h2>
+            <p class="text-muted small mb-0">Kelola katalog barang, pantau stok, dan ubah status penjualan produk Anda.</p>
+        </div>
+        <a href="{{ route('admin.products.create') }}" class="btn btn-primary px-4 py-2 rounded-3 fw-semibold shadow-sm">
+            <i class="bi bi-plus-circle me-2"></i>Tambah Produk
         </a>
     </div>
 
+    <!-- Flash Message Notification -->
     @if(session('success'))
-        <div class="alert alert-success rounded-4">{{ session('success') }}</div>
+        <div class="alert alert-success alert-dismissible fade show border-0 rounded-4 shadow-sm mb-4 p-3" role="alert">
+            <div class="d-flex align-items-center">
+                <i class="bi bi-check-circle-fill fs-5 me-2"></i>
+                <div>{{ session('success') }}</div>
+            </div>
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
     @endif
 
-    <div class="table-responsive">
-        <table id="productsTable" class="table align-middle table-hover dt-responsive nowrap">
-            <thead class="table-light">
-                <tr>
-                    <th>Nama Produk</th>
-                    <th>SKU</th>
-                    <th>Kategori</th>
-                    <th>Harga</th>
-                    <th>Stok</th>
-                    <th>Status</th>
-                    <th>Aksi</th>
-                </tr>
-            </thead>
-            <tbody>
-                @forelse($products as $product)
-                <tr>
-                    <td class="fw-semibold">{{ $product->name }}</td>
-                    <td>{{ $product->sku }}</td>
-                    <td>{{ $product->category ?? '-' }}</td>
-                    <td>Rp{{ number_format($product->price, 0, ',', '.') }}</td>
-                    <td>
-                        <span class="badge bg-{{ $product->stock > 0 ? 'success' : 'danger' }}">
-                            {{ $product->stock }}
-                        </span>
-                    </td>
-                    <td>{{ $product->status ?? '-' }}</td>
-                    <td>
-                        <a href="{{ route('admin.products.show', $product) }}" class="btn btn-info btn-sm me-1">Detail</a>
-                        <a href="{{ route('admin.products.edit', $product) }}" class="btn btn-warning btn-sm me-1">Edit</a>
-                        <form action="{{ route('admin.products.destroy', $product) }}" method="POST" style="display:inline-block">
-                            @csrf
-                            @method('DELETE')
-                            <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Yakin hapus produk?')">Hapus</button>
-                        </form>
-                    </td>
-                </tr>
-                @empty
-                <tr>
-                    <td colspan="7" class="text-center text-muted py-4">Belum ada produk</td>
-                </tr>
-                @endforelse
-            </tbody>
-        </table>
+    <!-- Main Content Table Card -->
+    <div class="card-table-wrapper">
+        <div class="table-responsive">
+            <table id="productsTable" class="table align-middle table-hover dt-responsive nowrap w-100 m-0">
+                <thead>
+                    <tr>
+                        <th>Nama Produk</th>
+                        <th>SKU</th>
+                        <th>Kategori</th>
+                        <th>Harga</th>
+                        <th>Stok</th>
+                        <th>Status</th>
+                        <th class="text-end">Aksi</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @forelse($products as $product)
+                    <tr>
+                        <td>
+                            <div class="fw-bold text-dark">{{ $product->name }}</div>
+                        </td>
+                        <td>
+                            <span class="font-monospace text-secondary small bg-light px-2 py-1 rounded border">{{ $product->sku }}</span>
+                        </td>
+                        <td>
+                            <span class="text-muted">{{ $product->category ?? '-' }}</span>
+                        </td>
+                        <td class="fw-semibold text-dark">
+                            Rp{{ number_format($product->price, 0, ',', '.') }}
+                        </td>
+                        <td>
+                            @if($product->stock > 10)
+                                <span class="badge badge-status bg-success-subtle text-success border border-success-subtle">
+                                    <i class="bi bi-box-seam me-1"></i>{{ $product->stock }} Pcs
+                                </span>
+                            @elseif($product->stock <= 10 && $product->stock > 0)
+                                <span class="badge badge-status bg-warning-subtle text-warning-emphasis border border-warning-subtle">
+                                    <i class="bi bi-exclamation-triangle me-1"></i>Sisa {{ $product->stock }}
+                                </span>
+                            @else
+                                <span class="badge badge-status bg-danger-subtle text-danger border border-danger-subtle">
+                                    <i class="bi bi-x-circle me-1"></i>Habis
+                                </span>
+                            @endif
+                        </td>
+                        <td>
+                            @if(str_contains(strtolower($product->status ?? ''), 'aktif') || strtolower($product->status ?? '') == 'active')
+                                <span class="badge bg-success rounded-pill px-2 py-1 small" style="font-size: 11px;">Aktif</span>
+                            @else
+                                <span class="badge bg-secondary rounded-pill px-2 py-1 small" style="font-size: 11px;">{{ $product->status ?? '-' }}</span>
+                            @endif
+                        </td>
+                        <td class="text-end">
+                            <div class="d-inline-flex gap-1">
+                                <a href="{{ route('admin.products.show', $product) }}" class="btn btn-outline-info btn-action" title="Detail">
+                                    <i class="bi bi-eye"></i>
+                                </a>
+                                <a href="{{ route('admin.products.edit', $product) }}" class="btn btn-outline-warning btn-action" title="Edit">
+                                    <i class="bi bi-pencil"></i>
+                                </a>
+                                <form action="{{ route('admin.products.destroy', $product) }}" method="POST" class="d-inline">
+                                    @csrf
+                                    @method('DELETE')
+                                    <button type="submit" class="btn btn-outline-danger btn-action" title="Hapus" onclick="return confirm('Yakin ingin menghapus produk ini?')">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                    @empty
+                    <!-- Handled by DataTables natively if empty, but good for non-js fallback -->
+                    <tr>
+                        <td colspan="7" class="text-center text-muted py-5">
+                            <i class="bi bi-box2 fs-2 d-block text-black-50 mb-2"></i>
+                            Belum ada data produk tersedia
+                        </td>
+                    </tr>
+                    @endforelse
+                </tbody>
+            </table>
+        </div>
     </div>
 </div>
 @endsection
@@ -68,14 +184,14 @@
                 "sSearch": "Cari:",
                 "sLengthMenu": "Tampilkan _MENU_ data",
                 "sInfo": "Menampilkan _START_ sampai _END_ dari _TOTAL_ data",
-                "sPrevious": "Sebelumnya",
-                "sNext": "Berikutnya",
+                "sPrevious": "<i class='bi bi-chevron-left'></i>",
+                "sNext": "<i class='bi bi-chevron-right'></i>",
                 "sInfoEmpty": "Menampilkan 0 sampai 0 dari 0 data",
-                "sEmptyTable": "Belum ada produk"
+                "sEmptyTable": "Belum ada produk terdaftar di database"
             },
             pageLength: 20,
             columnDefs: [
-                { orderable: false, targets: 6 }
+                { orderable: false, targets: 6 } // Mematikan sorting pada kolom aksi
             ]
         });
     });
