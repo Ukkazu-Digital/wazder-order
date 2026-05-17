@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\Order;
 use App\Models\Kurir;
+use App\Models\Contact;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -74,9 +75,12 @@ class OrderController extends Controller
     /**
      * Send invoice via WhatsApp if customer's phone available
      */
-    public function sendInvoice(Request $request, Order $order)
+    public function sendInvoice(Request $request, Order $order, Contact $contact)
     {
-        $phone = data_get($order, 'customer.customers_wa_id');
+        $idCustomer = data_get($order, 'customer.id');
+        $phone = data_get($contact, 'contact.wa_id', function() use ($idCustomer) {
+            return Contact::where('customer_id', $idCustomer)->value('wa_id');
+        });
         if (!$phone) {
             return redirect()->back()->with('error', 'Nomor WhatsApp customer tidak tersedia.');
         }
@@ -127,48 +131,93 @@ class OrderController extends Controller
      */
     private function createReceiptImage(Order $order)
     {
-        // Ensure storage folder exists
+        // Pastikan folder penyimpanan ada
         $dir = public_path('storage/invoices');
         if (!is_dir($dir)) {
             mkdir($dir, 0755, true);
         }
 
-        // Prepare lines for the receipt
+        // Menggunakan font bawaan nomor 3 (lebar karakter sekitar 7px, tinggi baris cocok di 16px)
+        // Dengan lebar gambar 384px, muat sekitar 50-52 karakter per baris. 
+        // Kita targetkan 48 karakter aman agar ada margin kanan-kiri.
+        $maxChars = 48; 
         $lines = [];
-        $lines[] = config('app.name', 'Larawaba');
-        $lines[] = 'INVOICE: ' . $order->order_code;
-        $lines[] = 'Tgl: ' . $order->created_at->format('d-m-Y H:i');
-        $lines[] = '------------------------------';
-        foreach ($order->details as $d) {
-            $name = substr($d->product->name ?? '-', 0, 24);
-            $lines[] = sprintf('%-20s %3sx Rp%s', $name, $d->qty, number_format($d->buy_price,0,',','.'));
-            $lines[] = sprintf('  Sub: Rp%s', number_format($d->subtotal,0,',','.'));
-        }
-        $lines[] = '------------------------------';
-        $lines[] = 'TOTAL: Rp ' . number_format($order->total_price,0,',','.');
-        $lines[] = '------------------------------';
-        $lines[] = 'Pelanggan: ' . ($order->customer->customers_name ?? '-');
-        $lines[] = 'Alamat: ' . ($order->customer->address ?? '-');
-        $lines[] = 'Terima kasih!';
 
-        // Image settings (thermal-like width)
-        $width = 384; // typical thermal width
-        $lineHeight = 14;
-        $padding = 8;
+        // 1. Header Toko
+        $appName = strtoupper(config('app.name', 'LARAWABA'));
+        $lines[] = str_pad($appName, $maxChars, ' ', STR_PAD_BOTH);
+        $lines[] = str_pad('STRUK RESMI PEMBELIAN', $maxChars, ' ', STR_PAD_BOTH);
+        $lines[] = str_repeat('-', $maxChars);
+
+        // 2. Meta Informasi Nota (Sejajar menggunakan format teks)
+        $lines[] = sprintf('%-10s: %s', 'Nota', $order->order_code);
+        $lines[] = sprintf('%-10s: %s', 'Tanggal', $order->created_at->format('d-m-Y H:i'));
+        $lines[] = sprintf('%-10s: %s', 'Kasir', auth()->user()->name ?? 'Admin POS');
+        $lines[] = str_repeat('-', $maxChars);
+
+        // 3. Daftar Item Belanjaan
+        $lines[] = 'DAFTAR BELANJAAN:';
+        foreach ($order->details as $d) {
+            $productName = \Illuminate\Support\Str::limit($d->product->name ?? '-', 22, '');
+            $qtyText = 'x' . $d->qty;
+            
+            // Baris Nama Produk & Qty (Rata Kiri & Rata Kanan)
+            $spacesForFirstRow = $maxChars - strlen($productName) - strlen($qtyText);
+            $lines[] = $productName . str_repeat(' ', max($spacesForFirstRow, 1)) . $qtyText;
+
+            // Baris Harga Satuan & Subtotal (Inden ke dalam sedikit)
+            $priceText = '  @ Rp ' . number_format($d->buy_price, 0, ',', '.');
+            $subtotalText = 'Rp ' . number_format($d->subtotal, 0, ',', '.');
+            $spacesForSecondRow = $maxChars - strlen($priceText) - strlen($subtotalText);
+            $lines[] = $priceText . str_repeat(' ', max($spacesForSecondRow, 1)) . $subtotalText;
+        }
+        $lines[] = str_repeat('-', $maxChars);
+
+        // 4. Kalkulasi Total Belanja
+        $totalLabel = 'TOTAL AKHIR';
+        $totalValue = 'Rp ' . number_format($order->total_price, 0, ',', '.');
+        $spacesForTotal = $maxChars - strlen($totalLabel) - strlen($totalValue);
+        $lines[] = $totalLabel . str_repeat(' ', max($spacesForTotal, 1)) . $totalValue;
+        $lines[] = str_repeat('-', $maxChars);
+
+        // 5. Data Penerima / Logistik Pelanggan
+        $customerName = $order->customer->customers_name ?? 'Walk-in Customer';
+        $lines[] = sprintf('%-10s: %s', 'Pelanggan', $customerName);
+        
+        if ($order->customer && $order->customer->address) {
+            $lines[] = sprintf('%-10s: %s', 'Alamat', $order->customer->address);
+        }
+        
+        if ($order->kurir) {
+            $kurirText = sprintf('%s [%s]', $order->kurir->name, $order->kurir->plate_number);
+            $lines[] = sprintf('%-10s: %s', 'Kurir', $kurirText);
+        }
+        $lines[] = str_repeat('-', $maxChars);
+
+        // 6. Footer Penutup (Rata Tengah)
+        $lines[] = str_pad('Terima kasih atas kunjungan Anda', $maxChars, ' ', STR_PAD_BOTH);
+        $lines[] = str_pad('Barang yang sudah dibeli tidak dapat', $maxChars, ' ', STR_PAD_BOTH);
+        $lines[] = str_pad('ditukar/dikembalikan.', $maxChars, ' ', STR_PAD_BOTH);
+
+        // Pengaturan Gambar Gambar GD
+        $width = 384; 
+        $lineHeight = 16; // Ditambahkan sedikit ruang antar baris agar lebih mudah dibaca
+        $padding = 12;    // Ditambahkan margin atas-bawah
         $height = $padding * 2 + count($lines) * $lineHeight;
 
         $img = imagecreate($width, $height);
         $white = imagecolorallocate($img, 255, 255, 255);
         $black = imagecolorallocate($img, 0, 0, 0);
 
-        // Background white
+        // Background Putih
         imagefilledrectangle($img, 0, 0, $width, $height, $white);
 
-        // Use built-in font
-        $font = 3; // small built-in font
+        // Rendering teks ke Gambar
+        $font = 3; 
         $y = $padding;
         foreach ($lines as $line) {
-            imagestring($img, $font, 6, $y, $line, $black);
+            // Offset X = 12px agar teks tidak terlalu mepet ke pinggir kiri fisik kertas thermal
+            imagestring($img, $font, 12, $y, $line, $black);
             $y += $lineHeight;
         }
 
@@ -177,7 +226,7 @@ class OrderController extends Controller
         imagepng($img, $path);
         imagedestroy($img);
 
-        // Return public URL
+        // Kembalikan Public URL
         return url('storage/invoices/' . $filename);
     }
 }
