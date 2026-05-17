@@ -6,8 +6,12 @@
         <a href="{{ route('admin.orders.index') }}" class="btn btn-light me-3">
             <i class="bi bi-arrow-left"></i>
         </a>
-        <h1 class="fw-bold mb-0">Detail Order</h1>
+        <h1 class="fw-bold mb-0">Detail Pesanan Kasir</h1>
     </div>
+
+    @if(session('success'))
+        <div class="alert alert-success rounded-4">{{ session('success') }}</div>
+    @endif
 
     <div class="row">
         <div class="col-md-8">
@@ -30,10 +34,11 @@
                         <div class="col-md-6">
                             <p class="text-muted mb-1">Customer</p>
                             <p class="fw-semibold">{{ $order->customer->customers_name ?? '-' }}</p>
+                            <small class="text-muted">{{ $order->customer->address ?? '-' }}</small>
                         </div>
                         <div class="col-md-6">
                             <p class="text-muted mb-1">Total Harga</p>
-                            <p class="fw-semibold text-primary">Rp{{ number_format($order->total_price, 0, ',', '.') }}</p>
+                            <p class="fw-semibold text-primary">Rp {{ number_format($order->total_price, 0, ',', '.') }}</p>
                         </div>
                     </div>
 
@@ -49,16 +54,23 @@
                         </div>
                         @endif
                     </div>
+
+                    @if($order->notes)
+                    <div class="mb-3">
+                        <p class="text-muted mb-1">Catatan</p>
+                        <p class="fw-semibold">{{ $order->notes }}</p>
+                    </div>
+                    @endif
                 </div>
             </div>
 
             <!-- Update Status Form -->
             <div class="card shadow-sm border-0 mb-4">
                 <div class="card-header bg-light p-3">
-                    <h5 class="mb-0 fw-semibold">Update Status Order</h5>
+                    <h5 class="mb-0 fw-semibold">Update Status Pesanan</h5>
                 </div>
                 <div class="card-body p-4">
-                    <form action="{{ route('admin.orders.updateStatus', $order) }}" method="POST">
+                    <form action="{{ route('kasir.updateStatus', $order) }}" method="POST">
                         @csrf
                         
                         <div class="mb-3">
@@ -66,10 +78,9 @@
                             <select name="status" id="status" class="form-select @error('status') is-invalid @enderror" required onchange="handleStatusChange()">
                                 <option value="">Pilih Status</option>
                                 <option value="pending" @if($order->status=='pending') selected @endif>Pending</option>
-                                <option value="paid" @if($order->status=='paid') selected @endif>Paid</option>
-                                <option value="shipped" @if($order->status=='shipped') selected @endif>Shipped</option>
-                                <option value="completed" @if($order->status=='completed') selected @endif>Completed</option>
-                                <option value="cancelled" @if($order->status=='cancelled') selected @endif>Cancelled</option>
+                                <option value="paid" @if($order->status=='paid') selected @endif>Lunas</option>
+                                <option value="shipped" @if($order->status=='shipped') selected @endif>Dikirim</option>
+                                <option value="completed" @if($order->status=='completed') selected @endif>Selesai</option>
                             </select>
                             @error('status')
                                 <div class="invalid-feedback d-block">{{ $message }}</div>
@@ -103,10 +114,36 @@
                 </div>
             </div>
         </div>
+
+        <!-- Order History -->
+        <div class="col-md-4">
+            <div class="card shadow-sm border-0">
+                <div class="card-header bg-light p-3">
+                    <h5 class="mb-0 fw-semibold">Riwayat Pesanan</h5>
+                </div>
+                <div class="card-body p-3">
+                    @forelse($order->histories as $history)
+                    <div class="mb-3 pb-3 border-bottom">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div>
+                                <span class="badge bg-{{ $history->status == 'pending' ? 'secondary' : ($history->status == 'paid' ? 'info' : ($history->status == 'shipped' ? 'warning' : 'success')) }}">
+                                    {{ ucfirst($history->status) }}
+                                </span>
+                                <p class="small text-muted mt-2 mb-1">{{ $history->created_at->format('d M Y, H:i') }}</p>
+                                <p class="small mb-0">{{ $history->note }}</p>
+                            </div>
+                        </div>
+                    </div>
+                    @empty
+                    <p class="text-muted small">Belum ada riwayat</p>
+                    @endforelse
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- Detail Produk -->
-    <div class="card shadow-sm border-0">
+    <div class="card shadow-sm border-0 mt-4">
         <div class="card-header bg-light p-3">
             <h5 class="mb-0 fw-semibold">Detail Produk</h5>
         </div>
@@ -126,10 +163,14 @@
                         <tr>
                             <td class="fw-semibold">{{ $detail->product->name ?? '-' }}</td>
                             <td>{{ $detail->qty }}</td>
-                            <td>Rp{{ number_format($detail->buy_price, 0, ',', '.') }}</td>
-                            <td>Rp{{ number_format($detail->subtotal, 0, ',', '.') }}</td>
+                            <td>Rp {{ number_format($detail->buy_price, 0, ',', '.') }}</td>
+                            <td class="fw-semibold">Rp {{ number_format($detail->subtotal, 0, ',', '.') }}</td>
                         </tr>
                         @endforeach
+                        <tr class="table-light">
+                            <td colspan="3" class="text-end fw-bold">Total</td>
+                            <td class="fw-bold">Rp {{ number_format($order->total_price, 0, ',', '.') }}</td>
+                        </tr>
                     </tbody>
                 </table>
             </div>
@@ -149,13 +190,10 @@
         } else {
             kurirField.style.display = 'none';
             kurirSelect.required = false;
-            kurirSelect.value = '';
         }
     }
 
-    // Run on page load to set initial state
-    document.addEventListener('DOMContentLoaded', function() {
-        handleStatusChange();
-    });
+    // Check on page load
+    window.addEventListener('load', handleStatusChange);
 </script>
 @endsection

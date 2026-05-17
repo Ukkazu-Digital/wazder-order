@@ -238,3 +238,101 @@ body {
         border-radius: 0;
     }
 }
+
+/* Pagination Styling */
+.pagination {
+    gap: 0.25rem;
+    flex-wrap: wrap;
+}
+
+.pagination .page-link {
+    border: 1px solid #dee2e6;
+    color: #0d6efd;
+    border-radius: 0.5rem;
+    margin: 0 2px;
+    padding: 0.5rem 0.75rem;
+    transition: all 0.15s ease-in-out;
+}
+
+.pagination .page-link:hover {
+    background-color: #e7f3ff;
+    border-color: #0d6efd;
+    color: #0d6efd;
+}
+
+.pagination .page-item.active .page-link {
+    background-color: #0d6efd;
+    border-color: #0d6efd;
+    color: #fff;
+    box-shadow: 0 2px 8px rgba(13, 110, 253, 0.3);
+}
+
+.pagination .page-item.disabled .page-link {
+    color: #6c757d;
+    cursor: not-allowed;
+    background-color: #f8f9fa;
+    border-color: #dee2e6;
+}
+
+/* DataTables Styling */
+.dataTables_wrapper {
+    padding: 0;
+}
+
+.dataTables_filter input {
+    border-radius: 0.5rem !important;
+    border: 1px solid #dee2e6 !important;
+    padding: 0.5rem 1rem !important;
+}
+
+.dataTables_length select {
+    border-radius: 0.5rem;
+    border: 1px solid #dee2e6;
+    padding: 0.5rem;
+}
+
+.dataTables_info {
+    padding: 1rem 0;
+    color: #6c757d;
+    font-size: 0.9rem;
+}
+
+.dataTables_paginate {
+    padding: 1rem 0;
+}
+
+.dataTables_paginate .paginate_button {
+    border-radius: 0.5rem;
+    margin: 0 2px;
+    border: 1px solid #dee2e6;
+    padding: 0.5rem 0.75rem;
+    background-color: #fff;
+    color: #0d6efd;
+    cursor: pointer;
+    transition: all 0.15s ease-in-out;
+}
+
+.dataTables_paginate .paginate_button:hover {
+    background-color: #e7f3ff;
+    border-color: #0d6efd;
+    color: #0d6efd;
+}
+
+.dataTables_paginate .paginate_button.current {
+    background-color: #0d6efd;
+    border-color: #0d6efd;
+    color: #fff;
+    box-shadow: 0 2px 8px rgba(13, 110, 253, 0.3);
+}
+
+.dataTables_paginate .paginate_button.disabled {
+    color: #6c757d;
+    cursor: not-allowed;
+    background-color: #f8f9fa;
+    border-color: #dee2e6;
+    opacity: 0.5;
+}
+
+.dt-container {
+    width: 100%;
+}

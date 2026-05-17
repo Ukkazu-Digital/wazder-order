@@ -5,6 +5,9 @@ use App\Http\Controllers\OrderController;
 use App\Http\Controllers\Admin\OrderController as AdminOrderController;
 use App\Http\Controllers\Admin\CustomerController;
 use App\Http\Controllers\Admin\ChatController;
+use App\Http\Controllers\Admin\ProductController;
+use App\Http\Controllers\Admin\KurirController;
+use App\Http\Controllers\Admin\KasirController;
 
 /*
 |--------------------------------------------------------------------------
@@ -64,6 +67,8 @@ Route::middleware(['web'])
     ->group(function () {
         Route::get('orders', [AdminOrderController::class, 'index'])->name('orders.index');
         Route::get('orders/{order}', [AdminOrderController::class, 'show'])->name('orders.show');
+        Route::get('orders/{order}/invoice', [AdminOrderController::class, 'invoice'])->name('orders.invoice');
+        Route::post('orders/{order}/send-invoice', [AdminOrderController::class, 'sendInvoice'])->name('orders.sendInvoice');
         Route::post('orders/{order}/update-status', [AdminOrderController::class, 'updateStatus'])->name('orders.updateStatus');
         Route::delete('orders/{order}', [AdminOrderController::class, 'destroy'])->name('orders.destroy');
     });
@@ -88,6 +93,33 @@ Route::middleware(['web'])
         Route::post('chats/{contact_wa_id}/send', [ChatController::class, 'send'])->name('chats.send');
         Route::get('chats/{contact_wa_id}/refresh', [ChatController::class, 'refresh'])->name('chats.refresh');
         Route::post('chats/{contact_wa_id}/complete-case', [ChatController::class, 'completeCase'])->name('chats.complete-case');
+    });
+
+// Route admin dashboard product management
+Route::middleware(['web'])
+    ->prefix('admin')
+    ->name('admin.')
+    ->group(function () {
+        Route::resource('products', ProductController::class);
+    });
+
+// Route admin dashboard kurir management
+Route::middleware(['web'])
+    ->prefix('admin')
+    ->name('admin.')
+    ->group(function () {
+        Route::resource('kurirs', KurirController::class);
+    });
+
+// Route admin dashboard kasir management (no index - create direct)
+Route::middleware(['web'])
+    ->prefix('admin')
+    ->group(function () {
+        Route::get('kasir/create', [KasirController::class, 'create'])->name('kasir.create');
+        Route::post('kasir', [KasirController::class, 'store'])->name('kasir.store');
+        Route::get('kasir/{order}', [KasirController::class, 'show'])->name('kasir.show');
+        Route::post('kasir/{order}/update-status', [KasirController::class, 'updateStatus'])->name('kasir.updateStatus');
+        Route::delete('kasir/{order}', [KasirController::class, 'destroy'])->name('kasir.destroy');
     });
 
 // Route admin dashboard utama

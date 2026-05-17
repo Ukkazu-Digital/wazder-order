@@ -12,7 +12,7 @@ class Order extends Model
     use SoftDeletes;
 
     protected $table = 'orders';
-    protected $fillable = ['order_code','customer_id','total_price','status','notes'];
+    protected $fillable = ['order_code','customer_id','kurir_id','total_price','status','source','notes'];
 
     /**
      * Relasi ke Customer (Satu Order dimiliki oleh satu Customer)
@@ -20,6 +20,14 @@ class Order extends Model
     public function customer()
     {
         return $this->belongsTo(Customer::class, 'customer_id');
+    }
+
+    /**
+     * Relasi ke Kurir (Satu Order dikirim oleh satu Kurir)
+     */
+    public function kurir()
+    {
+        return $this->belongsTo(Kurir::class, 'kurir_id');
     }
 
     /**

@@ -40,8 +40,13 @@
                     <p class="text-sm font-mono font-bold">{{ $order->order_code }}</p>
                 </div>
                 <div class="text-right">
-                    <p class="text-[10px] text-blue-200 uppercase">Estimasi Tiba</p>
-                    <p class="text-sm font-bold">-</p>
+                    <p class="text-[10px] text-blue-200 uppercase">Kurir Pengiriman</p>
+                    @if($order->kurir)
+                        <p class="text-sm font-bold">{{ $order->kurir->name }}</p>
+                        <p class="text-xs text-blue-100">{{ $order->kurir->plate_number }}</p>
+                    @else
+                        <p class="text-sm font-bold">Belum Ditentukan</p>
+                    @endif
                 </div>
             </div>
         </section>
@@ -52,6 +57,7 @@
             <div class="space-y-8 relative">
                 <div class="absolute left-[15px] top-2 bottom-2 w-0.5 bg-gray-100"></div>
 
+                <!-- Initial Order Creation -->
                 <div class="flex items-start gap-4 relative">
                     <div class="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white text-xs z-10 border-4 border-white">✓</div>
                     <div>
@@ -60,21 +66,65 @@
                     </div>
                 </div>
 
-                <div class="flex items-start gap-4 relative">
-                    <div class="w-8 h-8 rounded-full {{ in_array($order->status, ['paid','shipped','completed']) ? 'bg-blue-600' : 'bg-gray-200' }} flex items-center justify-center text-white text-xs z-10 border-4 border-white">✓</div>
-                    <div>
-                        <p class="text-sm font-bold {{ in_array($order->status, ['paid','shipped','completed']) ? '' : 'text-gray-300' }}">Konfirmasi Pembayaran</p>
-                        <p class="text-xs text-gray-400">Pembayaran tervalidasi</p>
+                <!-- Dynamic History from Database -->
+                @forelse($order->histories as $history)
+                    <div class="flex items-start gap-4 relative">
+                        @php
+                            // Determine if history is completed based on order status
+                            $statusHierarchy = ['pending' => 0, 'paid' => 1, 'shipped' => 2, 'completed' => 3];
+                            $historyHierarchy = ['pending' => 0, 'paid' => 1, 'shipped' => 2, 'completed' => 3];
+                            $isCompleted = isset($statusHierarchy[$order->status], $historyHierarchy[$history->status]) 
+                                && $statusHierarchy[$order->status] >= $historyHierarchy[$history->status];
+                            
+                            // Map status to icon
+                            $statusIcon = match($history->status) {
+                                'paid' => '✓',
+                                'shipped' => '🚚',
+                                'completed' => '✨',
+                                default => '📦'
+                            };
+                        @endphp
+                        <div class="w-8 h-8 rounded-full {{ $isCompleted ? 'bg-blue-600' : 'bg-gray-200' }} flex items-center justify-center text-white text-xs z-10 border-4 border-white {{ $isCompleted ? 'shadow-lg shadow-blue-200' : '' }}">
+                            {{ $statusIcon }}
+                        </div>
+                        <div>
+                            <p class="text-sm font-bold {{ $isCompleted ? '' : 'text-gray-300' }}">
+                                @switch($history->status)
+                                    @case('paid')
+                                        Konfirmasi Pembayaran
+                                        @break
+                                    @case('shipped')
+                                        Sedang Dikirim
+                                        @break
+                                    @case('completed')
+                                        Selesai Diterima
+                                        @break
+                                    @default
+                                        Update Pesanan
+                                @endswitch
+                            </p>
+                            <p class="text-xs text-gray-400">{{ $history->note ?? 'Pesanan diperbarui' }}</p>
+                            <p class="text-xs text-gray-500 mt-1">{{ $history->created_at->format('d M Y, H:i') }} WIB</p>
+                        </div>
                     </div>
-                </div>
+                @empty
+                    <!-- Fallback if no histories -->
+                    <div class="flex items-start gap-4 relative">
+                        <div class="w-8 h-8 rounded-full {{ in_array($order->status, ['paid','shipped','completed']) ? 'bg-blue-600' : 'bg-gray-200' }} flex items-center justify-center text-white text-xs z-10 border-4 border-white">✓</div>
+                        <div>
+                            <p class="text-sm font-bold {{ in_array($order->status, ['paid','shipped','completed']) ? '' : 'text-gray-300' }}">Konfirmasi Pembayaran</p>
+                            <p class="text-xs text-gray-400">Pembayaran tervalidasi</p>
+                        </div>
+                    </div>
 
-                <div class="flex items-start gap-4 relative">
-                    <div class="w-8 h-8 rounded-full {{ in_array($order->status, ['shipped','completed']) ? 'bg-blue-600 shadow-lg shadow-blue-200' : 'bg-gray-200' }} flex items-center justify-center text-white text-xs z-10 border-4 border-white">🚚</div>
-                    <div>
-                        <p class="text-sm font-bold {{ in_array($order->status, ['shipped','completed']) ? '' : 'text-gray-300' }}">Sedang Dikirim</p>
-                        <p class="text-xs text-gray-400">{{ in_array($order->status, ['shipped','completed']) ? 'Kurir sedang menuju lokasi Anda' : '' }}</p>
+                    <div class="flex items-start gap-4 relative">
+                        <div class="w-8 h-8 rounded-full {{ in_array($order->status, ['shipped','completed']) ? 'bg-blue-600 shadow-lg shadow-blue-200' : 'bg-gray-200' }} flex items-center justify-center text-white text-xs z-10 border-4 border-white">🚚</div>
+                        <div>
+                            <p class="text-sm font-bold {{ in_array($order->status, ['shipped','completed']) ? '' : 'text-gray-300' }}">Sedang Dikirim</p>
+                            <p class="text-xs text-gray-400">{{ in_array($order->status, ['shipped','completed']) ? 'Kurir sedang menuju lokasi Anda' : '' }}</p>
+                        </div>
                     </div>
-                </div>
+                @endforelse
             </div>
         </section>
 
@@ -109,6 +159,36 @@
                 📍 Lihat di Peta
             </a>
         </section>
+
+        @if($order->kurir && in_array($order->status, ['shipped', 'completed']))
+        <section class="bg-white rounded-3xl p-6 shadow-sm border border-gray-100">
+            <h3 class="text-sm font-bold text-gray-400 uppercase tracking-widest mb-4">Data Kurir Pengiriman</h3>
+            <div class="space-y-3">
+                <div class="flex items-center justify-between pb-3 border-b border-gray-100">
+                    <p class="text-xs text-gray-500">Nama Kurir</p>
+                    <p class="font-bold text-sm">{{ $order->kurir->name }}</p>
+                </div>
+                <div class="flex items-center justify-between pb-3 border-b border-gray-100">
+                    <p class="text-xs text-gray-500">Nomor Plat</p>
+                    <p class="font-bold text-sm text-blue-600">{{ $order->kurir->plate_number }}</p>
+                </div>
+                <div class="flex items-center justify-between pb-3 border-b border-gray-100">
+                    <p class="text-xs text-gray-500">Nomor HP</p>
+                    <a href="https://wa.me/{{ str_replace(['+', '-', ' '], '', $order->kurir->phone) }}" 
+                       target="_blank"
+                       class="font-bold text-sm text-green-600 hover:text-green-700">
+                        {{ $order->kurir->phone }}
+                    </a>
+                </div>
+                <div class="flex items-center justify-between pt-3 border-t border-gray-100">
+                    <p class="text-xs text-gray-500">Status</p>
+                    <span class="badge px-3 py-1 bg-green-100 text-green-800 text-xs font-bold rounded-full">
+                        {{ $order->kurir->status }}
+                    </span>
+                </div>
+            </div>
+        </section>
+        @endif
 
     </main>
 
