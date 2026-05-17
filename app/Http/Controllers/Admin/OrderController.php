@@ -54,6 +54,19 @@ class OrderController extends Controller
                 'created_at' => now(),
                 'updated_at' => now(),
             ]);
+
+            // OTOMATISASI: Jika status berubah menjadi completed, jalankan pengiriman invoice
+            if ($request->status === 'completed') {
+                $sendingJob = $this->executeSendInvoice($order);
+                
+                // Jika pengiriman otomatis gagal karena nomor WA tidak ada atau API error,
+                // status pesanan tetap sukses berubah, namun beri tahu admin lewat flash message.
+                if (!$sendingJob['success']) {
+                    return redirect()->route('admin.orders.index')->with('success', 'Status updated to Completed, but invoice failed to send: ' . $sendingJob['message']);
+                }
+                
+                return redirect()->route('admin.orders.index')->with('success', 'Status updated to Completed and Invoice sent via WhatsApp!');
+            }
         }
         return redirect()->route('admin.orders.index')->with('success', 'Status updated!');
     }
@@ -73,36 +86,47 @@ class OrderController extends Controller
     }
 
     /**
-     * Send invoice via WhatsApp if customer's phone available
+     * Send invoice via WhatsApp if customer's phone available (Manual trigger from view)
      */
-    public function sendInvoice(Request $request, Order $order, Contact $contact)
+    public function sendInvoice(Request $request, Order $order)
+    {
+        $result = $this->executeSendInvoice($order);
+
+        if ($result['success']) {
+            return redirect()->back()->with('success', $result['message']);
+        }
+
+        return redirect()->back()->with('error', $result['message']);
+    }
+
+    /**
+     * Core Logic: Proses utama pengiriman file invoice gambar via API WhatsApp Cloud
+     */
+    private function executeSendInvoice(Order $order)
     {
         $idCustomer = data_get($order, 'customer.id');
-        $phone = data_get($contact, 'contact.wa_id', function() use ($idCustomer) {
-            return Contact::where('customer_id', $idCustomer)->value('wa_id');
-        });
+        $phone = Contact::where('customer_id', $idCustomer)->value('wa_id');
+
         if (!$phone) {
-            return redirect()->back()->with('error', 'Nomor WhatsApp customer tidak tersedia.');
+            return [
+                'success' => false,
+                'message' => 'Nomor WhatsApp customer tidak tersedia.'
+            ];
         }
 
         $token = env('WHATSAPP_TOKEN');
         $phoneId = env('WHATSAPP_PHONE_NUMBER_ID');
         $apiUrl = "https://graph.facebook.com/v25.0/{$phoneId}/messages";
 
-        // Build items text
-        $itemsText = '';
-        foreach ($order->details as $d) {
-            $itemsText .= $d->product->name . ' (x' . $d->qty . ') - Rp ' . number_format($d->subtotal,0,',','.') . "\n";
-        }
-
-        $body = "Invoice {$order->order_code}\nTotal: Rp " . number_format($order->total_price,0,',','.') . "\n\nItems:\n" . $itemsText;
-
         try {
             // Generate receipt image and store publicly
             $imageUrl = $this->createReceiptImage($order);
 
             if (!$imageUrl) {
-                return redirect()->back()->with('error', 'Gagal membuat gambar invoice');
+                return [
+                    'success' => false,
+                    'message' => 'Gagal membuat gambar invoice.'
+                ];
             }
 
             // Payload to send image by link
@@ -114,15 +138,27 @@ class OrderController extends Controller
             ];
 
             $response = Http::withToken($token)->post($apiUrl, $payload);
+            
             if ($response->successful()) {
                 Log::info('Invoice image sent via WhatsApp to ' . $phone, ['url' => $imageUrl]);
-                return redirect()->back()->with('success', 'Invoice berhasil dikirim via WhatsApp');
+                return [
+                    'success' => true,
+                    'message' => 'Invoice berhasil dikirim via WhatsApp.'
+                ];
             }
+            
             Log::error('Failed send invoice WA', ['resp' => $response->json()]);
-            return redirect()->back()->with('error', 'Gagal mengirim invoice via WhatsApp');
+            return [
+                'success' => false,
+                'message' => 'Gagal mengirim invoice via WhatsApp API.'
+            ];
+
         } catch (\Exception $e) {
             Log::error('Error send invoice WA: ' . $e->getMessage());
-            return redirect()->back()->with('error', 'Terjadi kesalahan saat mengirim invoice');
+            return [
+                'success' => false,
+                'message' => 'Terjadi kesalahan sistem saat mengirim invoice.'
+            ];
         }
     }
 
@@ -201,8 +237,8 @@ class OrderController extends Controller
 
         // Pengaturan Gambar Gambar GD
         $width = 384; 
-        $lineHeight = 16; // Ditambahkan sedikit ruang antar baris agar lebih mudah dibaca
-        $padding = 12;    // Ditambahkan margin atas-bawah
+        $lineHeight = 16; 
+        $padding = 12;    
         $height = $padding * 2 + count($lines) * $lineHeight;
 
         $img = imagecreate($width, $height);
@@ -216,7 +252,6 @@ class OrderController extends Controller
         $font = 3; 
         $y = $padding;
         foreach ($lines as $line) {
-            // Offset X = 12px agar teks tidak terlalu mepet ke pinggir kiri fisik kertas thermal
             imagestring($img, $font, 12, $y, $line, $black);
             $y += $lineHeight;
         }
