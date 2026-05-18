@@ -278,4 +278,28 @@ class OrderController extends Controller
         return view('order.track', compact('transaction_id', 'order'));
     }
 
+    /**
+     * Menampilkan Halaman Sukses
+     * Diakses via URL: /order/success/{transaction_id}
+     */
+    public function success($transaction_id)
+    {
+        // Oper variabel $transaction_id ke view success.blade.php
+        return view('success', compact('transaction_id'));
+    }
+
+    /**
+     * Menampilkan Halaman Gagal
+     * Diakses via URL: /order/failed
+     */
+    public function failed(Request $request)
+    {
+        // Mengambil pesan error dari query string (?msg=...) 
+        // Jika tidak ada, default-nya pesan di sebelah kanan
+        $message = $request->query('msg', 'Terjadi kesalahan atau link sudah tidak valid.');
+
+        // Oper variabel $message ke view failed.blade.php
+        return view('failed', compact('message'));
+    }
+
 }
