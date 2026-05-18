@@ -285,7 +285,7 @@ class OrderController extends Controller
     public function success($transaction_id)
     {
         // Oper variabel $transaction_id ke view success.blade.php
-        return view('success', compact('transaction_id'));
+        return view('order.success', compact('transaction_id'));
     }
 
     /**
@@ -299,7 +299,7 @@ class OrderController extends Controller
         $message = $request->query('msg', 'Terjadi kesalahan atau link sudah tidak valid.');
 
         // Oper variabel $message ke view failed.blade.php
-        return view('failed', compact('message'));
+        return view('order.failed', compact('message'));
     }
 
 }
