@@ -89,24 +89,22 @@ class OrderController extends Controller
         try {
             // Gunakan Transaction agar jika satu gagal, semua batal (Rollback)
             $result = DB::transaction(function () use ($request) {
-                $contact = Contact::where('wa_id', $request->wa)->first();
-                if ($contact && $contact->customer_id) {
+                // Normalisasi nomor WA untuk konsistensi pencarian dan penyimpanan
+                $normalizedWa = preg_replace('/[^0-9]/', '', $request->wa);
+
+                $contact = Contact::where('wa_id', $normalizedWa)->first();
+                if ($contact && $contact->customer_id != null) {
                     $customer = Customer::find($contact->customer_id);
                     if ($customer) {
                         $customer->update([
                             'customers_name' => $request->nama,
                             'address' => $request->alamat
                         ]);
-                    } else {
-                        $customer = Customer::create([
-                            'customers_wa_id' => $request->wa,
-                            'customers_name' => $request->nama,
-                            'address' => $request->alamat
-                        ]);
-                        $contact->update(['customer_id' => $customer->id]);
                     }
-                } else {
-                    $customer = Customer::where('customers_wa_id', $request->wa)->first();
+                }
+
+                if (empty($contact) || empty($contact->customer_id)) {
+                    $customer = Customer::where('customers_wa_id', $normalizedWa)->first();
                     if ($customer) {
                         $customer->update([
                             'customers_name' => $request->nama,
@@ -114,19 +112,27 @@ class OrderController extends Controller
                         ]);
                     } else {
                         $customer = Customer::create([
-                            'customers_wa_id' => $request->wa,
+                            'customers_wa_id' => $normalizedWa,
                             'customers_name' => $request->nama,
                             'address' => $request->alamat
                         ]);
                     }
+
                     if ($contact) {
-                        $contact->update(['customer_id' => $customer->id]);
+                        // Perbarui hanya satu baris kontak yang ditemukan
+                        $contact->customer_id = $customer->id;
+                        $contact->save();
                     } else {
                         Contact::create([
-                            'wa_id' => $request->wa,
+                            'wa_id' => $normalizedWa,
                             'customer_id' => $customer->id
                         ]);
                     }
+                }
+
+                // Jika kontak ditemukan dan punya relasi customer, gunakan customer tersebut
+                if (empty($customer) && $contact && $contact->customer_id) {
+                    $customer = Customer::find($contact->customer_id);
                 }
 
                 // 3. Buat Header Order

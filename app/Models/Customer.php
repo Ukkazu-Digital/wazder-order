@@ -12,7 +12,7 @@ class Customer extends Model
     use SoftDeletes;
 
     protected $table = 'customers';
-    protected $fillable = ['customers_name','address','latitude','longtitude','updated_by'];
+    protected $fillable = ['customers_name','customers_wa_id','address','latitude','longtitude','updated_by'];
 
     public function orders()
     {
