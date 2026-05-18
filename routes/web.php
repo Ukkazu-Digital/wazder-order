@@ -27,6 +27,11 @@ Route::get('/', function () {
 Route::get('/order/{encoded_trx?}', [OrderController::class, 'index']);
 Route::post('/order/store', [OrderController::class, 'store']);
 Route::get('/order/status/{encoded_trx?}', [OrderController::class, 'track']);
+// Route untuk halaman Sukses (menerima ID transaksi di URL)
+Route::get('/order/success/{transaction_id}', [OrderController::class, 'success'])->name('order.success');
+
+// Route untuk halaman Gagal
+Route::get('/order/failed', [OrderController::class, 'failed'])->name('order.failed');
 
 // Route::get('/order/status/{encoded_trx?}', function() {
     // Membuat objek dummy menggunakan class standar PHP

@@ -198,10 +198,11 @@
                 });
                 const res = await resp.json();
                 if (res.success) {
-                    alert("Berhasil! " + res.message);
-                    window.location.reload();
+                    // Redirect ke halaman sukses membawa ID Transaksi
+                    window.location.href = `/order/success/${payload.kode_pesanan}`;
                 } else {
-                    alert(res.message);
+                    // Atau jika gagal, arahkan ke halaman gagal dengan pesan error
+                    window.location.href = `/order/failed?msg=${encodeURIComponent(res.message)}`;
                 }
             } catch (err) {
                 alert("Koneksi gagal "+err);

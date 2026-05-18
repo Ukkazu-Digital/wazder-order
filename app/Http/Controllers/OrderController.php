@@ -180,7 +180,7 @@ class OrderController extends Controller
                     'items' => $items
                 ];
             });
-
+            LinkOrder::where('kode_pesanan', $request->kode_pesanan)->update(['expired_at' => Carbon::now()]);
             $this->sendWhatsAppNotification($result);
 
             return response()->json([
