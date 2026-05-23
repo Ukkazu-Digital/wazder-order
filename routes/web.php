@@ -24,6 +24,14 @@ Route::get('/', function () {
     return view('welcome');
 });
 
+Route::get('/maintenance', function () {
+    // Jika di .env dimatikan tapi user akses manual, kembalikan ke homepage
+    if (env('APP_MAINTENANCE') !== 'on') {
+        return redirect('/');
+    }
+    return view('maintenance');
+})->name('maintenance');
+
 Route::get('/order/{encoded_trx?}', [OrderController::class, 'index']);
 Route::post('/order/store', [OrderController::class, 'store']);
 Route::get('/order/status/{encoded_trx?}', [OrderController::class, 'track']);
