@@ -142,7 +142,7 @@
                         <!-- Data Customer -->
                         <div class="mb-3">
                             <label class="form-label fw-bold text-muted small">INFORMASI PELANGGAN</label>
-                            <select class="form-select" id="customer_id" name="customer_id" required onchange="toggleNewCustomerFields()">
+                            <select class="form-select" id="select-customer" name="customer_id" required onchange="toggleNewCustomerFields()">
                                 <option value="">-- Pilih Customer --</option>
                                 @foreach($customers as $customer)
                                     <option value="{{ $customer->id }}">{{ $customer->customers_name }}</option>
@@ -229,6 +229,35 @@
 
 @push('scripts')
 <script>
+    //select2
+    $(document).ready(function() {
+    $('#select-customer').select2({
+        theme: "bootstrap-5",
+        width: '100%',
+        placeholder: "Cari nama atau no HP konsumen...",
+        allowClear: true,
+        ajax: {
+            url: '{{ route("admin.kasir.search_customer") }}',
+            dataType: 'json',
+            delay: 250,
+            data: function (params) {
+                return { q: params.term };
+            },
+            processResults: function (data) {
+                // Menambahkan opsi "New Customer" secara manual ke hasil AJAX
+                data.push({ id: 'new', text: '+ Buat Customer Baru' });
+                return { results: data };
+            },
+            cache: true
+        },
+        minimumInputLength: 1
+    });
+
+    // Event saat pilihan berubah
+    $('#select-customer').on('select2:select', function (e) {
+        toggleNewCustomerFields(e.params.data.id);
+    });
+});
     // Penampung data keranjang objek tunggal global
     let cart = {};
 
@@ -328,19 +357,20 @@
     }
 
     // 4. Manajemen Event Logika Field Sekunder UI
-    function toggleNewCustomerFields() {
-        const sel = document.getElementById('customer_id');
+    // Pastikan ID select Anda adalah 'select-customer' (sesuai kode JS di atas)
+
+    function toggleNewCustomerFields(selectedValue = null) {
+        // Jika dipanggil dari event select2, gunakan parameter, jika tidak ambil dari value
+        const val = selectedValue || document.getElementById('select-customer').value;
         const newFields = document.getElementById('newCustomerFields');
-        const newCustomerNameInput = document.getElementById('new_customer_name');
+        const newInputs = newFields.querySelectorAll('input');
         
-        if (!sel || !newFields) return;
-        
-        if (sel.value === 'new') {
+        if (val === 'new') {
             newFields.style.display = 'block';
-            if (newCustomerNameInput) newCustomerNameInput.setAttribute('required', 'required');
+            newInputs.forEach(input => input.setAttribute('required', 'required'));
         } else {
             newFields.style.display = 'none';
-            if (newCustomerNameInput) newCustomerNameInput.removeAttribute('required');
+            newInputs.forEach(input => input.removeAttribute('required'));
         }
     }
 

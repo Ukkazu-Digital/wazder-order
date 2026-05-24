@@ -10,6 +10,9 @@ use App\Http\Controllers\Admin\v2\ProductController as ProductControllerV2;
 use App\Http\Controllers\Admin\KurirController;
 use App\Http\Controllers\Admin\KasirController;
 use App\Http\Controllers\Admin\StockManagementController;
+use App\Http\Controllers\Admin\ReportController;
+use App\Http\Controllers\Admin\DashboardController;
+use App\Http\Controllers\ProfileController;
 
 /*
 |--------------------------------------------------------------------------
@@ -43,12 +46,10 @@ Route::controller(OrderController::class)->prefix('order')->name('order.')->grou
 |--------------------------------------------------------------------------
 */
 
-Route::prefix('admin')->name('admin.')->group(function () {
+Route::prefix('admin')->name('admin.')->middleware(['auth', 'verified'])->group(function () {
 
     // Dashboard Utama
-    Route::get('/', function() {
-        return view('admin.dashboard');
-    })->name('dashboard');
+    Route::get('/', [DashboardController::class, 'index'])->name('dashboard');
 
     // Order Management
     Route::controller(AdminOrderController::class)->prefix('orders')->name('orders.')->group(function () {
@@ -78,6 +79,7 @@ Route::prefix('admin')->name('admin.')->group(function () {
 
     // Kasir Management
     Route::controller(KasirController::class)->prefix('kasir')->name('kasir.')->group(function () {
+        Route::get('/search-customer', 'searchCustomers')->name('search_customer');
         Route::get('/create', 'create')->name('create');
         Route::post('/', 'store')->name('store');
         Route::get('/{order}', 'show')->name('show');
@@ -101,6 +103,15 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('/active-batches/{product_id}', 'getActiveBatches')->name('active_batches');
     });
 
+    Route::controller(ReportController::class)->prefix('reports')->name('reports.')->group(function () {
+        Route::prefix('profit')->name('profit.')->group(function () {
+            Route::get('/', 'profitReport')->name('index');
+            Route::get('/export/excel', 'exportProfitExcel')->name('excel');
+            Route::get('/export/pdf', 'exportProfitPdf')->name('pdf');
+        });
+        Route::get('/inventory-valuation', 'inventoryValuation')->name('inventory_valuation');
+    });
+
     // Admin API / Feature V2
     Route::prefix('v2')->name('v2.')->group(function () {
         // Custom FIFO Operations (Di atas resource agar tidak bentrok)
@@ -110,3 +121,11 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::resource('products', ProductControllerV2::class);
     });
 });
+
+Route::middleware('auth')->group(function () {
+    Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
+    Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
+    Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
+});
+
+require __DIR__.'/auth.php';

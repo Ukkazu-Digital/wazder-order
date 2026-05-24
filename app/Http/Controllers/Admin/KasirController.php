@@ -264,4 +264,21 @@ class KasirController extends Controller
             return redirect()->back()->with('error', 'Gagal menghapus pesanan: ' . $e->getMessage());
         }
     }
+
+    public function searchCustomers(Request $request)
+    {
+        $search = $request->get('q');
+        $customers = Customer::where('customers_name', 'LIKE', "%$search%")
+                            ->limit(10)
+                            ->get();
+
+        $results = $customers->map(function($customer) {
+            return [
+                'id' => $customer->id,
+                'text' => $customer->customers_name . ' - ' . $customer->phone
+            ];
+        });
+
+        return response()->json($results);
+    }
 }

@@ -3,21 +3,75 @@
 @section('content')
 <div class="container py-5">
     
-    <!-- Welcome Header -->
     <div class="mb-5">
         <h2 class="fw-bold text-dark mb-1">Dashboard Admin</h2>
         <p class="text-secondary mb-0">Selamat datang kembali! Berikut adalah ringkasan kontrol sistem Anda hari ini.</p>
     </div>
 
-    <!-- SEKSI 1: OPERASIONAL UTAMA (Aktivitas Tinggi) -->
-    <div class="mb-4">
+    <div class="mb-5">
+        <div class="d-flex align-items-center mb-3">
+            <div class="bg-success opacity-10 rounded-circle me-2" style="width: 8px; height: 8px;"></div>
+            <h5 class="fw-bold text-uppercase tracking-wider text-secondary small mb-0">Ringkasan Finansial Bulan Ini</h5>
+        </div>
+        
+        <div class="row g-3">
+            <div class="col-12 col-sm-6 col-xl-3">
+                <div class="card border-0 shadow-sm bg-white rounded-3 p-3 h-100">
+                    <div class="card-body p-2 flex-grow-1">
+                        <small class="text-uppercase tracking-wider text-muted font-semibold small">Omset Berjalan</small>
+                        <h3 class="fw-bold text-dark mt-2 mb-0">Rp {{ number_format($thisMonthRevenue, 0, ',', '.') }}</h3>
+                    </div>
+                    <div class="card-footer bg-transparent border-0 pt-0 px-2">
+                        <small class="text-muted text-xs">Total penjualan bruto kotor</small>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-12 col-sm-6 col-xl-3">
+                <div class="card border-0 shadow-sm bg-white rounded-3 p-3 h-100">
+                    <div class="card-body p-2 flex-grow-1">
+                        <small class="text-uppercase tracking-wider text-danger font-semibold small">Beban HPP (FIFO)</small>
+                        <h3 class="fw-bold text-danger mt-2 mb-0">Rp {{ number_format($thisMonthHpp, 0, ',', '.') }}</h3>
+                    </div>
+                    <div class="card-footer bg-transparent border-0 pt-0 px-2">
+                        <small class="text-muted text-xs">Nilai pokok tumpukan keluar</small>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-12 col-sm-6 col-xl-3">
+                <div class="card border-0 shadow-sm bg-emerald-soft rounded-3 p-3 h-100" style="border-left: 4px solid #198754 !important;">
+                    <div class="card-body p-2 flex-grow-1">
+                        <small class="text-uppercase tracking-wider text-success font-semibold small">Laba Bersih Operasional</small>
+                        <h3 class="fw-bold text-success mt-2 mb-0">Rp {{ number_format($thisMonthProfit, 0, ',', '.') }}</h3>
+                    </div>
+                    <div class="card-footer bg-transparent border-0 pt-0 px-2">
+                        <small class="text-success text-xs fw-medium">Net margin performa ritel</small>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-12 col-sm-6 col-xl-3">
+                <div class="card border-0 shadow-sm bg-blue-soft rounded-3 p-3 h-100" style="border-left: 4px solid #0d6efd !important;">
+                    <div class="card-body p-2 flex-grow-1">
+                        <small class="text-uppercase tracking-wider text-primary font-semibold small">Nilai Aset Gudang</small>
+                        <h3 class="fw-bold text-primary mt-2 mb-0">Rp {{ number_format($currentAssetValuation, 0, ',', '.') }}</h3>
+                    </div>
+                    <div class="card-footer bg-transparent border-0 pt-0 px-2">
+                        <small class="text-primary text-xs fw-medium">Uang modal mengendap di stok</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="mb-5">
         <div class="d-flex align-items-center mb-3">
             <div class="bg-primary opacity-10 rounded-circle me-2" style="width: 8px; height: 8px;"></div>
             <h5 class="fw-bold text-uppercase tracking-wider text-secondary small mb-0">Operasional Utama</h5>
         </div>
         
         <div class="row g-3">
-            <!-- 1. POS Kasir (Hero Card) -->
             <div class="col-12 col-lg-5">
                 <div class="card border-0 shadow-sm bg-primary text-white h-100 rounded-3 overflow-hidden position-relative">
                     <div class="card-body p-4 d-flex flex-column justify-content-between z-1">
@@ -32,16 +86,14 @@
                             <i class="bi bi-plus-circle me-1"></i> Buka Kasir Baru
                         </a>
                     </div>
-                    <!-- Variasi background dekoratif halus -->
                     <div class="position-absolute end-0 bottom-0 opacity-10 translate-middle-x mb-n4 me-n4" style="font-size: 10rem;">
                         <i class="bi bi-receipt"></i>
                     </div>
                 </div>
             </div>
 
-            <!-- 2. Manajemen Order -->
             <div class="col-12 col-md-6 col-lg-3.5">
-                <div class="card border-0 shadow-sm bg-white h-100 rounded-3 transition-all hover-translate">
+                <div class="card border-0 shadow-sm bg-white h-100 rounded-3 card-clickable">
                     <div class="card-body p-4 d-flex flex-column justify-content-between">
                         <div>
                             <div class="bg-blue-soft rounded-3 d-inline-flex p-3 mb-3 text-primary fs-3">
@@ -57,9 +109,8 @@
                 </div>
             </div>
 
-            <!-- 3. Manajemen Chat -->
             <div class="col-12 col-md-6 col-lg-3.5">
-                <div class="card border-0 shadow-sm bg-white h-100 rounded-3 transition-all hover-translate">
+                <div class="card border-0 shadow-sm bg-white h-100 rounded-3 card-clickable">
                     <div class="card-body p-4 d-flex flex-column justify-content-between">
                         <div>
                             <div class="bg-success-soft rounded-3 d-inline-flex p-3 mb-3 text-success fs-3">
@@ -77,15 +128,13 @@
         </div>
     </div>
 
-    <!-- SEKSI 2: MASTER DATA & LOGISTIK (Pendukung) -->
-    <div class="pt-2">
+    <div class="mb-5">
         <div class="d-flex align-items-center mb-3">
             <div class="bg-secondary opacity-10 rounded-circle me-2" style="width: 8px; height: 8px;"></div>
             <h5 class="fw-bold text-uppercase tracking-wider text-secondary small mb-0">Master Data & Logistik</h5>
         </div>
 
         <div class="row g-3">
-            <!-- 4. Manajemen Produk -->
             <div class="col-6 col-md-3">
                 <a href="{{ route('admin.v2.products.index') }}" class="text-decoration-none">
                     <div class="card border-0 shadow-sm bg-white rounded-3 text-center p-4 h-100 card-clickable">
@@ -98,7 +147,6 @@
                 </a>
             </div>
 
-            <!-- 5. Manajemen Batch Stok -->
             <div class="col-6 col-md-3">
                 <a href="{{ route('admin.stocks.index') }}" class="text-decoration-none">
                     <div class="card border-0 shadow-sm bg-white rounded-3 text-center p-4 h-100 card-clickable">
@@ -111,7 +159,6 @@
                 </a>
             </div>
 
-            <!-- 6. Manajemen Customer -->
             <div class="col-6 col-md-3">
                 <a href="{{ route('admin.customers.index') }}" class="text-decoration-none">
                     <div class="card border-0 shadow-sm bg-white rounded-3 text-center p-4 h-100 card-clickable">
@@ -124,7 +171,6 @@
                 </a>
             </div>
 
-            <!-- 7. Manajemen Kurir -->
             <div class="col-6 col-md-3">
                 <a href="{{ route('admin.kurirs.index') }}" class="text-decoration-none">
                     <div class="card border-0 shadow-sm bg-white rounded-3 text-center p-4 h-100 card-clickable">
@@ -139,22 +185,68 @@
         </div>
     </div>
 
+    <div class="mb-4">
+        <div class="d-flex align-items-center mb-3">
+            <div class="bg-info opacity-10 rounded-circle me-2" style="width: 8px; height: 8px;"></div>
+            <h5 class="fw-bold text-uppercase tracking-wider text-secondary small mb-0">Pusat Laporan Komprehensif</h5>
+        </div>
+
+        <div class="row g-3">
+            <div class="col-12 col-md-6">
+                <div class="card border-0 shadow-sm bg-white rounded-3 p-4 card-clickable">
+                    <div class="d-flex align-items-center justify-content-between">
+                        <div class="d-flex align-items-center">
+                            <div class="p-3 rounded-3 bg-emerald-soft text-success fs-4 me-3">
+                                <i class="bi bi-graph-up-arrow"></i>
+                            </div>
+                            <div>
+                                <h6 class="fw-bold text-dark mb-1">Analisis Untung / Rugi Ritel</h6>
+                                <p class="text-muted small mb-0">Audit rincian performa margin keuntungan per item.</p>
+                            </div>
+                        </div>
+                        <a href="{{ route('admin.reports.profit.index') }}" class="btn btn-light rounded-circle text-success px-3 py-2">
+                            <i class="bi bi-chevron-right"></i>
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-12 col-md-6">
+                <div class="card border-0 shadow-sm bg-white rounded-3 p-4 card-clickable">
+                    <div class="d-flex align-items-center justify-content-between">
+                        <div class="d-flex align-items-center">
+                            <div class="p-3 rounded-3 bg-blue-soft text-primary fs-4 me-3">
+                                <i class="bi bi-pie-chart-fill"></i>
+                            </div>
+                            <div>
+                                <h6 class="fw-bold text-dark mb-1">Valuasi Inventaris & Gudang</h6>
+                                <p class="text-muted small mb-0">Pengecekan tumpukan modal pada sisa antrean kuota batch.</p>
+                            </div>
+                        </div>
+                        <a href="{{ route('admin.reports.inventory_valuation') }}" class="btn btn-light rounded-circle text-primary px-3 py-2">
+                            <i class="bi bi-chevron-right"></i>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
 </div>
 
-<!-- Helper Styles Alternatif jika Bootstrap Anda belum mendukung soft colors -->
 <style>
-    .bg-blue-soft { background-color: rgba(13, 110, 253, 0.08); }
-    .bg-success-soft { background-color: rgba(25, 135, 84, 0.08); }
+    .bg-blue-soft { background-color: rgba(13, 110, 253, 0.06); }
+    .bg-success-soft { background-color: rgba(25, 135, 84, 0.06); }
+    .bg-emerald-soft { background-color: rgba(25, 135, 84, 0.05); }
     .btn-white { background-color: #fff; color: #0d6efd; }
     .btn-white:hover { background-color: #f8f9fa; color: #0a58ca; }
     
-    /* Efek hover halus agar dashboard terasa interaktif */
     .card-clickable {
         transition: transform 0.2s ease, box-shadow 0.2s ease;
     }
     .card-clickable:hover {
         transform: translateY(-3px);
-        box-shadow: 0 .5rem 1rem rgba(0,0,0,.08)!important;
+        box-shadow: 0 .5rem 1rem rgba(0,0,0,.06)!important;
     }
 </style>
 @endsection

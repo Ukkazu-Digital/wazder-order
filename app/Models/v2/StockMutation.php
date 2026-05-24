@@ -10,6 +10,7 @@ class StockMutation extends Model
 {
     use SoftDeletes; // 2. Gunakan trait jika mutasi bisa dibatalkan
 
+    protected $table = 'stock_mutations';
     protected $fillable = [
         'product_id',
         'stock_entry_id',
@@ -25,7 +26,7 @@ class StockMutation extends Model
      */
     public function product(): BelongsTo
     {
-        return $this->belongsTo(Product::class)->withTrashed();
+        return $this->belongsTo(Product::class, 'product_id');
     }
 
     /**
