@@ -62,13 +62,13 @@ class OrderController extends Controller
                 // Jika pengiriman otomatis gagal karena nomor WA tidak ada atau API error,
                 // status pesanan tetap sukses berubah, namun beri tahu admin lewat flash message.
                 if (!$sendingJob['success']) {
-                    return redirect()->route('admin.orders.index')->with('success', 'Status updated to Completed, but invoice failed to send: ' . $sendingJob['message']);
+                    return redirect()->route('admin.orders.show', $order)->with('success', 'Status updated to Completed, but invoice failed to send: ' . $sendingJob['message']);
                 }
                 
-                return redirect()->route('admin.orders.index')->with('success', 'Status updated to Completed and Invoice sent via WhatsApp!');
+                return redirect()->route('admin.orders.show', $order)->with('success', 'Status updated to Completed and Invoice sent via WhatsApp!');
             }
         }
-        return redirect()->route('admin.orders.index')->with('success', 'Status updated!');
+        return redirect()->route('admin.orders.show', $order)->with('success', 'Status updated!');
     }
 
     public function destroy(Order $order)

@@ -79,7 +79,13 @@
             <p class="text-muted small mb-0">Kelola rincian item belanjaan dan logistik kurir pengiriman.</p>
         </div>
     </div>
-
+    @if(session('success'))
+        <div class="alert alert-success d-flex align-items-center rounded-4 border-0 shadow-sm p-3 mb-4 fade show" role="alert">
+            <i class="bi bi-check-circle-fill me-2 fs-5 text-success"></i>
+            <div class="fw-semibold text-success-emphasis small">{{ session('success') }}</div>
+            <button type="button" class="btn-close ms-auto" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    @endif
     <!-- Layout Grid Utama (Responsif 2 Kolom) -->
     <div class="row g-4">
         

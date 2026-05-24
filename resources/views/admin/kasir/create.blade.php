@@ -46,7 +46,7 @@
     @endif
 
     <!-- Form Utama Terintegrasi -->
-    <form action="{{ route('kasir.store') }}" method="POST" id="mainOrderForm" class="needs-validation">
+    <form action="{{ route('admin.kasir.store') }}" method="POST" id="mainOrderForm" class="needs-validation" novalidate>
         @csrf
         <!-- Hidden input pendukung data kontrol form -->
         <input type="hidden" name="kode_pesanan" value="{{ $transaction_id ?? '' }}">
@@ -67,8 +67,13 @@
                 <div class="pos-scroll-area hide-scrollbar pe-1">
                     <div id="productGrid" class="row row-cols-2 row-cols-sm-3 row-cols-xl-4 g-3">
                         @foreach($products as $product)
+                        @php
+                            // Mengambil data dari mapping model v2\Product
+                            $currentStock = $product->totalStock();
+                            $sellingPrice = $product->selling_price;
+                        @endphp
                         <div class="col product-item" data-name="{{ strtolower($product->name) }}">
-                            <div class="card h-100 border-0 shadow-sm rounded-4 overflow-hidden product-card position-relative p-2 bg-white {{ $product->stock <= 0 ? 'opacity-50' : '' }}">
+                            <div class="card h-100 border-0 shadow-sm rounded-4 overflow-hidden product-card position-relative p-2 bg-white {{ $currentStock <= 0 ? 'opacity-50' : '' }}">
                                 
                                 <!-- Thumbnail Produk -->
                                 <div class="position-relative bg-light rounded-3 overflow-hidden mb-2 d-flex align-items-center justify-content-center" style="aspect-ratio: 1/1;">
@@ -79,11 +84,11 @@
                                     @endif
 
                                     <!-- Status Badge Stok overlay -->
-                                    @if($product->stock <= 0)
+                                    @if($currentStock <= 0)
                                         <div class="position-absolute inset-0 bg-dark bg-opacity-50 d-flex align-items-center justify-content-center w-100 h-100">
                                             <span class="badge bg-danger text-uppercase px-2 py-1 fw-bold fs-7">Habis</span>
                                         </div>
-                                    @elseif($product->stock <= 5)
+                                    @elseif($currentStock <= 5)
                                         <span class="position-absolute top-2 right-2 badge bg-warning text-dark fw-bold" style="font-size: 10px;">Limit</span>
                                     @endif
                                 </div>
@@ -91,19 +96,19 @@
                                 <!-- Metadata info produk -->
                                 <div class="card-body p-1 d-flex flex-column h-100">
                                     <h6 class="card-title fw-bold text-dark text-truncate mb-1" title="{{ $product->name }}">{{ $product->name }}</h6>
-                                    <p class="text-primary fw-bold mb-1 small">Rp {{ number_format($product->price, 0, ',', '.') }}</p>
+                                    <p class="text-primary fw-bold mb-1 small">Rp {{ number_format($sellingPrice, 0, ',', '.') }}</p>
                                     
-                                    <p id="stock-info-{{ $product->id }}" class="mb-2" style="font-size: 11px; font-weight: 600; color: {{ $product->stock <= 5 ? '#f0ad4e' : '#a0a0a0' }}">
-                                        {{ $product->stock <= 0 ? 'Stok Habis' : ($product->stock <= 5 ? "Sisa $product->stock stok!" : 'Stok Tersedia') }}
+                                    <p id="stock-info-{{ $product->id }}" class="mb-2" style="font-size: 11px; font-weight: 600; color: {{ $currentStock <= 5 ? '#f0ad4e' : '#a0a0a0' }}">
+                                        {{ $currentStock <= 0 ? 'Stok Habis' : ($currentStock <= 5 ? "Sisa $currentStock stok!" : 'Stok Tersedia') }}
                                     </p>
 
                                     <!-- Controller Qty di bawah kartu -->
                                     <div class="d-flex align-items-center justify-content-between mt-auto bg-light rounded-3 p-1">
-                                        <button type="button" onclick="updateQty({{ $product->id }}, -1)" class="btn btn-sm btn-white shadow-sm fw-bold border-0 px-2">-</button>
+                                        <button type="button" onclick="updateQty({{ $product->id }}, -1, '{{ addslashes($product->name) }}', {{ $sellingPrice }}, {{ $currentStock }})" class="btn btn-sm btn-white shadow-sm fw-bold border-0 px-2">-</button>
                                         <span id="qty-text-{{ $product->id }}" class="fw-bold small text-dark">0</span>
                                         
-                                        @if($product->stock > 0)
-                                            <button type="button" onclick="updateQty({{ $product->id }}, 1, '{{ $product->name }}', {{ $product->price }}, {{ $product->stock }})" 
+                                        @if($currentStock > 0)
+                                            <button type="button" onclick="updateQty({{ $product->id }}, 1, '{{ addslashes($product->name) }}', {{ $sellingPrice }}, {{ $currentStock }})" 
                                                     class="btn btn-sm btn-primary shadow-sm fw-bold border-0 px-2">+</button>
                                         @else
                                             <button type="button" disabled class="btn btn-sm btn-secondary opacity-50 px-2">x</button>
@@ -136,7 +141,7 @@
 
                         <!-- Data Customer -->
                         <div class="mb-3">
-                            <label for="customer_id" class="form-label fw-bold text-muted small">INFORMASI PELANGGAN</label>
+                            <label class="form-label fw-bold text-muted small">INFORMASI PELANGGAN</label>
                             <select class="form-select" id="customer_id" name="customer_id" required onchange="toggleNewCustomerFields()">
                                 <option value="">-- Pilih Customer --</option>
                                 @foreach($customers as $customer)
@@ -144,12 +149,13 @@
                                 @endforeach
                                 <option value="new">+ Buat Customer Baru</option>
                             </select>
+                            <div class="invalid-feedback">Silakan pilih atau buat pelanggan baru.</div>
                             
                             <!-- Fields input pelanggan baru seandainya dibutuhkan -->
                             <div id="newCustomerFields" class="p-3 bg-light border border-dashed rounded-3 mt-2" style="display: none;">
                                 <div class="mb-2">
                                     <label class="form-label small mb-1">Nama</label>
-                                    <input type="text" name="new_customer_name" class="form-control form-control-sm">
+                                    <input type="text" id="new_customer_name" name="new_customer_name" class="form-control form-control-sm">
                                 </div>
                                 <div class="mb-2">
                                     <label class="form-label small mb-1">Alamat</label>
@@ -172,6 +178,7 @@
                                 <option value="completed">Completed</option>
                                 <option value="cancelled">Cancelled</option>
                             </select>
+                            <div class="invalid-feedback">Pilih status transaksi.</div>
 
                             <div id="kurirFieldCreate" class="mt-2" style="display: none;">
                                 <label for="kurir_id" class="form-label small mb-1 text-muted">Petugas Kurir</label>
@@ -181,6 +188,7 @@
                                         <option value="{{ $kurir->id }}">{{ $kurir->name }} ({{ $kurir->plate_number }})</option>
                                     @endforeach
                                 </select>
+                                <div class="invalid-feedback" id="kurirFeedback">Kurir wajib dipilih jika status Shipped.</div>
                             </div>
                         </div>
 
@@ -237,10 +245,9 @@
         });
     }
 
-    // 2. Fungsi Manajemen Kuantitas Plus / Minus 
+    // 2. Fungsi Manajemen Kuantitas Plus / Minus (Sudah Diperbaiki Keamanannya)
     function updateQty(id, change, name = '', price = 0, maxStock = 0) {
         if (!cart[id]) {
-            // Jika diklik tombol minus padahal belum ada di keranjang
             if (change < 0) return; 
             cart[id] = { name: name, price: price, qty: 0, maxStock: maxStock };
         }
@@ -248,13 +255,13 @@
         let newQty = cart[id].qty + change;
         
         if (newQty > cart[id].maxStock) {
-            alert("Stok produk tidak mencukupi batas maksimum!");
+            alert(`Stok produk tidak mencukupi! Batas maksimum batch FIFO v2 saat ini: ${cart[id].maxStock} pcs.`);
             return;
         }
         
         cart[id].qty = newQty;
         
-        // Hapus referensi jika qty bernilai nol atau di bawahnya
+        // Hapus referensi dari objek jika qty bernilai nol
         if (cart[id].qty <= 0) {
             delete cart[id];
         }
@@ -278,7 +285,6 @@
         cartList.innerHTML = '';
         hiddenContainer.innerHTML = '';
 
-        // Looping data item belanja
         const keys = Object.keys(cart);
         
         if(keys.length === 0) {
@@ -304,7 +310,7 @@
                     </div>`;
                 cartList.insertAdjacentHTML('beforeend', rowHtml);
 
-                // Buat Elemen Hidden Input Otomatis agar dibaca Array Request `products` oleh Controller Laravel
+                // Sinkronisasi penuh dengan validasi Request KasirController: products.*.product_id & qty
                 hiddenContainer.insertAdjacentHTML('beforeend', `
                     <input type="hidden" name="products[${index}][product_id]" value="${id}">
                     <input type="hidden" name="products[${index}][qty]" value="${item.qty}">
@@ -325,26 +331,58 @@
     function toggleNewCustomerFields() {
         const sel = document.getElementById('customer_id');
         const newFields = document.getElementById('newCustomerFields');
+        const newCustomerNameInput = document.getElementById('new_customer_name');
+        
         if (!sel || !newFields) return;
-        newFields.style.display = sel.value === 'new' ? 'block' : 'none';
+        
+        if (sel.value === 'new') {
+            newFields.style.display = 'block';
+            if (newCustomerNameInput) newCustomerNameInput.setAttribute('required', 'required');
+        } else {
+            newFields.style.display = 'none';
+            if (newCustomerNameInput) newCustomerNameInput.removeAttribute('required');
+        }
     }
 
     function handleStatusChange() {
         const status = document.getElementById('status').value;
         const kurirField = document.getElementById('kurirFieldCreate');
-        if (!kurirField) return;
-        kurirField.style.display = status === 'shipped' ? 'block' : 'none';
+        const kurirSelect = document.getElementById('kurir_id');
+        
+        if (!kurirField || !kurirSelect) return;
+        
+        if (status === 'shipped') {
+            kurirField.style.display = 'block';
+            kurirSelect.setAttribute('required', 'required');
+        } else {
+            kurirField.style.display = 'none';
+            kurirSelect.removeAttribute('required');
+        }
     }
 
-    // Proteksi pengiriman form jika keranjang belanja masih kosong gulung tikar
+    // Validasi Pengiriman dengan Interaktivitas Bootstrap 5
     document.getElementById('mainOrderForm').addEventListener('submit', function(e) {
+        const form = this;
+
+        // Proteksi keranjang kosong
         if (Object.keys(cart).length === 0) {
             e.preventDefault();
             alert("Keranjang belanja kosong! Silakan pilih minimal 1 item produk terlebih dahulu.");
+            return;
         }
+
+        // Jalankan checkValidity HTML5 Bootstrap
+        if (!form.checkValidity()) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+
+        form.classList.add('was-validated');
     });
 
+    // Jalankan inisialisasi awal saat render halaman selesai
     window.addEventListener('load', function() {
+        document.getElementById('searchInput').focus(); // Auto-focus pencarian untuk mempercepat kasir
         renderCart();
         toggleNewCustomerFields();
         handleStatusChange();

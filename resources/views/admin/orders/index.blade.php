@@ -42,7 +42,7 @@
             <h1 class="mb-1 fw-bold text-dark"><i class="bi bi-receipt-cutoff me-2 text-primary"></i>Manajemen Orderan</h1>
             <p class="text-muted small mb-0">Lacak transaksi masuk, status pembayaran, dan cetak invoice struk belanja.</p>
         </div>
-        <a href="{{ route('kasir.create') }}" class="btn btn-primary px-4 py-2 rounded-3 fw-bold shadow-sm">
+        <a href="{{ route('admin.kasir.create') }}" class="btn btn-primary px-4 py-2 rounded-3 fw-bold shadow-sm">
             <i class="bi bi-grid-3x3-gap-fill me-2"></i>Buka POS Kasir
         </a>
     </div>

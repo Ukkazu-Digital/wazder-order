@@ -6,18 +6,15 @@ use App\Http\Controllers\Admin\OrderController as AdminOrderController;
 use App\Http\Controllers\Admin\CustomerController;
 use App\Http\Controllers\Admin\ChatController;
 use App\Http\Controllers\Admin\ProductController;
+use App\Http\Controllers\Admin\v2\ProductController as ProductControllerV2;
 use App\Http\Controllers\Admin\KurirController;
 use App\Http\Controllers\Admin\KasirController;
+use App\Http\Controllers\Admin\StockManagementController;
 
 /*
 |--------------------------------------------------------------------------
-| Web Routes
+| Public / Web Routes
 |--------------------------------------------------------------------------
-|
-| Here is where you can register web routes for your application. These
-| routes are loaded by the RouteServiceProvider and all of them will
-| be assigned to the "web" middleware group. Make something great!
-|
 */
 
 Route::get('/', function () {
@@ -25,122 +22,91 @@ Route::get('/', function () {
 });
 
 Route::get('/maintenance', function () {
-    // Jika di .env dimatikan tapi user akses manual, kembalikan ke homepage
-    if (env('APP_MAINTENANCE') !== 'on') {
+    if (config('app.maintenance') !== 'on' && env('APP_MAINTENANCE') !== 'on') {
         return redirect('/');
     }
     return view('maintenance');
 })->name('maintenance');
 
-Route::get('/order/{encoded_trx?}', [OrderController::class, 'index']);
-Route::post('/order/store', [OrderController::class, 'store']);
-Route::get('/order/status/{encoded_trx?}', [OrderController::class, 'track']);
-// Route untuk halaman Sukses (menerima ID transaksi di URL)
-Route::get('/order/success/{transaction_id}', [OrderController::class, 'success'])->name('order.success');
+// Front-end Order Routes
+Route::controller(OrderController::class)->prefix('order')->name('order.')->group(function () {
+    Route::get('/{encoded_trx?}', 'index')->name('index');
+    Route::post('/store', 'store')->name('store');
+    Route::get('/status/{encoded_trx?}', 'track')->name('track');
+    Route::get('/success/{kode_pesanan}', 'success')->name('success');
+    Route::get('/failed/{msg}', 'failed')->name('failed');
+});
 
-// Route untuk halaman Gagal
-Route::get('/order/failed', [OrderController::class, 'failed'])->name('order.failed');
+/*
+|--------------------------------------------------------------------------
+| Admin Dashboard Routes
+|--------------------------------------------------------------------------
+*/
 
-// Route::get('/order/status/{encoded_trx?}', function() {
-    // Membuat objek dummy menggunakan class standar PHP
-    // $order = (object) [
-    //     'order_code' => 'TRX-99283-X',
-    //     'status' => 'shipped', // Pilihan: pending, paid, shipped, completed
-    //     'total_price' => 245000,
-    //     'created_at' => now()->subHours(5),
-    //     'customer' => (object) [
-    //         'customers_name' => 'Budi Santoso',
-    //         'address' => 'Jl. Merdeka No. 45, Kecamatan Cicurug, Kabupaten Sukabumi, Jawa Barat 43359',
-    //         'latitude' => -6.7844,
-    //         'longitude' => 106.7911
-    //     ],
-    //     'orderDetails' => collect([
-    //         (object) [
-    //             'product' => (object) ['name' => 'Kaos Polos Premium Black'],
-    //             'qty' => 2,
-    //             'buy_price' => 75000,
-    //             'subtotal' => 150000
-    //         ],
-    //         (object) [
-    //             'product' => (object) ['name' => 'Topi Snapback Original'],
-    //             'qty' => 1,
-    //             'buy_price' => 95000,
-    //             'subtotal' => 95000
-    //         ]
-    //     ])
-    // ];
+Route::prefix('admin')->name('admin.')->group(function () {
 
-    // return view('order.track', compact('order'));
-// });
+    // Dashboard Utama
+    Route::get('/', function() {
+        return view('admin.dashboard');
+    })->name('dashboard');
 
-// Route admin dashboard order management
-Route::middleware(['web'])
-    ->prefix('admin')
-    ->name('admin.')
-    ->group(function () {
-        Route::get('orders', [AdminOrderController::class, 'index'])->name('orders.index');
-        Route::get('orders/{order}', [AdminOrderController::class, 'show'])->name('orders.show');
-        Route::get('orders/{order}/invoice', [AdminOrderController::class, 'invoice'])->name('orders.invoice');
-        Route::post('orders/{order}/send-invoice', [AdminOrderController::class, 'sendInvoice'])->name('orders.sendInvoice');
-        Route::post('orders/{order}/update-status', [AdminOrderController::class, 'updateStatus'])->name('orders.updateStatus');
-        Route::delete('orders/{order}', [AdminOrderController::class, 'destroy'])->name('orders.destroy');
+    // Order Management
+    Route::controller(AdminOrderController::class)->prefix('orders')->name('orders.')->group(function () {
+        Route::get('/', 'index')->name('index');
+        Route::get('/{order}', 'show')->name('show');
+        Route::get('/{order}/invoice', 'invoice')->name('invoice');
+        Route::post('/{order}/send-invoice', 'sendInvoice')->name('sendInvoice');
+        Route::post('/{order}/update-status', 'updateStatus')->name('updateStatus');
+        Route::delete('/{order}', 'destroy')->name('destroy');
     });
 
-// Route admin dashboard customer management
-Route::middleware(['web'])
-    ->prefix('admin')
-    ->name('admin.')
-    ->group(function () {
-        Route::get('customers', [CustomerController::class, 'index'])->name('customers.index');
-        Route::get('customers/{customer}', [CustomerController::class, 'show'])->name('customers.show');
-        Route::delete('customers/{customer}', [CustomerController::class, 'destroy'])->name('customers.destroy');
+    // Customer Management
+    Route::controller(CustomerController::class)->prefix('customers')->name('customers.')->group(function () {
+        Route::get('/', 'index')->name('index');
+        Route::get('/{customer}', 'show')->name('show');
+        Route::delete('/{customer}', 'destroy')->name('destroy');
     });
 
-// Route admin dashboard chat management
-Route::middleware(['web'])
-    ->prefix('admin')
-    ->name('admin.')
-    ->group(function () {
-        Route::get('chats', [ChatController::class, 'index'])->name('chats.index');
-        Route::get('chats/{contact_wa_id}', [ChatController::class, 'show'])->name('chats.show');
-        Route::post('chats/{contact_wa_id}/send', [ChatController::class, 'send'])->name('chats.send');
-        Route::get('chats/{contact_wa_id}/refresh', [ChatController::class, 'refresh'])->name('chats.refresh');
-        Route::post('chats/{contact_wa_id}/complete-case', [ChatController::class, 'completeCase'])->name('chats.complete-case');
+    // Chat Management
+    Route::controller(ChatController::class)->prefix('chats')->name('chats.')->group(function () {
+        Route::get('/', 'index')->name('index');
+        Route::get('/{contact_wa_id}', 'show')->name('show');
+        Route::post('/{contact_wa_id}/send', 'send')->name('send');
+        Route::get('/{contact_wa_id}/refresh', 'refresh')->name('refresh');
+        Route::post('/{contact_wa_id}/complete-case', 'completeCase')->name('complete-case');
     });
 
-// Route admin dashboard product management
-Route::middleware(['web'])
-    ->prefix('admin')
-    ->name('admin.')
-    ->group(function () {
-        Route::resource('products', ProductController::class);
+    // Kasir Management
+    Route::controller(KasirController::class)->prefix('kasir')->name('kasir.')->group(function () {
+        Route::get('/create', 'create')->name('create');
+        Route::post('/', 'store')->name('store');
+        Route::get('/{order}', 'show')->name('show');
+        Route::post('/{order}/update-status', 'updateStatus')->name('updateStatus');
+        Route::delete('/{order}', 'destroy')->name('destroy');
     });
 
-// Route admin dashboard kurir management
-Route::middleware(['web'])
-    ->prefix('admin')
-    ->name('admin.')
-    ->group(function () {
-        Route::resource('kurirs', KurirController::class);
+    // Resources V1 (Products & Kurirs)
+    Route::resource('products', ProductController::class);
+    Route::resource('kurirs', KurirController::class);
+
+    // Stock Management
+    Route::controller(StockManagementController::class)->prefix('stocks')->name('stocks.')->group(function () {
+        Route::get('/', 'index')->name('index');
+        Route::get('/create', 'create')->name('create');
+        Route::post('/', 'store')->name('store');
+        // Route baru untuk Stok Keluar / Penyesuaian
+        Route::get('/adjustment', 'createAdjustment')->name('adjustment');
+        Route::post('/adjustment', 'storeAdjustment')->name('store_adjustment');
+        // Route baru untuk mengambil batch aktif (untuk AJAX)
+        Route::get('/active-batches/{product_id}', 'getActiveBatches')->name('active_batches');
     });
 
-// Route admin dashboard kasir management (no index - create direct)
-Route::middleware(['web'])
-    ->prefix('admin')
-    ->group(function () {
-        Route::get('kasir/create', [KasirController::class, 'create'])->name('kasir.create');
-        Route::post('kasir', [KasirController::class, 'store'])->name('kasir.store');
-        Route::get('kasir/{order}', [KasirController::class, 'show'])->name('kasir.show');
-        Route::post('kasir/{order}/update-status', [KasirController::class, 'updateStatus'])->name('kasir.updateStatus');
-        Route::delete('kasir/{order}', [KasirController::class, 'destroy'])->name('kasir.destroy');
+    // Admin API / Feature V2
+    Route::prefix('v2')->name('v2.')->group(function () {
+        // Custom FIFO Operations (Di atas resource agar tidak bentrok)
+        Route::post('products/checkout', [ProductControllerV2::class, 'checkoutOrder'])->name('products.checkout');
+        Route::post('products/cancel/{order_id}', [ProductControllerV2::class, 'cancelOrder'])->name('products.cancel');
+        
+        Route::resource('products', ProductControllerV2::class);
     });
-
-// Route admin dashboard utama
-Route::middleware(['web'])
-    ->prefix('admin')
-    ->name('admin.')
-    ->group(function () {
-        Route::get('/', function() {
-            return view('admin.dashboard');
-        })->name('dashboard');
-    });
+});

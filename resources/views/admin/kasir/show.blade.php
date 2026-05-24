@@ -70,7 +70,7 @@
                     <h5 class="mb-0 fw-semibold">Update Status Pesanan</h5>
                 </div>
                 <div class="card-body p-4">
-                    <form action="{{ route('kasir.updateStatus', $order) }}" method="POST">
+                    <form action="{{ route('admin.kasir.updateStatus', $order) }}" method="POST">
                         @csrf
                         
                         <div class="mb-3">

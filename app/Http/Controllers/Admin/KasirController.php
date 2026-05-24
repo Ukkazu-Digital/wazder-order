@@ -7,7 +7,7 @@ use Illuminate\Http\Request;
 use App\Models\Order;
 use App\Models\OrderDetail;
 use App\Models\Customer;
-use App\Models\Product;
+use App\Models\v2\Product; // Menggunakan model Product dari sub-namespace v2
 use App\Models\Kurir;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -19,7 +19,6 @@ class KasirController extends Controller
      */
     public function index()
     {
-        // Get orders created via kasir source, ordered by latest
         $orders = Order::where('source', 'kasir')->latest()->get();
         return view('admin.kasir.index', compact('orders'));
     }
@@ -30,9 +29,15 @@ class KasirController extends Controller
     public function create()
     {
         $customers = Customer::all();
-        $products = Product::where('is_active', 1)->get();
+        
+        // OPTIMASI v2: Filter langsung di level DB via whereHas agar hemat RAM server kasir
+        $products = Product::whereHas('stockEntries', function ($query) {
+            $query->where('qty_remaining', '>', 0);
+        })->orderBy('name', 'asc')->get();
+        
         $kurirs = Kurir::where('status', 'Aktif')->get();
         $transaction_id = 'ORD-' . strtoupper(Str::random(6)) . '-' . date('YmdHis');
+        
         return view('admin.kasir.create', compact('customers', 'products', 'kurirs', 'transaction_id'));
     }
 
@@ -42,15 +47,14 @@ class KasirController extends Controller
     public function store(Request $request)
     {
         $request->validate([
-            'customer_id' => 'required', // allow 'new' value
+            'customer_id' => 'required',
             'products' => 'required|array|min:1',
-            'products.*.product_id' => 'required|exists:products,id',
+            'products.*.product_id' => 'required|exists:products,id', 
             'products.*.qty' => 'required|integer|min:1',
             'status' => 'required|in:pending,paid,shipped,completed,cancelled',
             'notes' => 'nullable|string',
         ]);
 
-        // additional validation when creating new customer
         if ($request->customer_id === 'new') {
             $request->validate([
                 'new_customer_name' => 'required|string|max:255',
@@ -59,22 +63,25 @@ class KasirController extends Controller
             ]);
         }
 
-        try {
-            // Generate order code
-            $orderCode = 'ORD-' . strtoupper(Str::random(6)) . '-' . date('YmdHis');
+        // Menggunakan Database Transaction untuk menjamin konsistensi multi-tabel FIFO v2
+        DB::beginTransaction();
 
-            // Calculate total price
+        try {
+            $orderCode = 'ORD-' . strtoupper(Str::random(6)) . '-' . date('YmdHis');
             $totalPrice = 0;
             $productsList = $request->products;
 
+            // 1. Validasi awal kesediaan total stok v2 sebelum eksekusi pembayaran
             foreach ($productsList as $item) {
-                $product = Product::find($item['product_id']);
-                $subtotal = $product->price * $item['qty'];
-                $totalPrice += $subtotal;
+                $product = Product::where('id', $item['product_id'])->lockForUpdate()->findOrFail($item['product_id']);
+                if ($product->totalStock() < $item['qty']) {
+                    throw new \Exception("Stok produk '{$product->name}' tidak mencukupi. Sisa stok: " . $product->totalStock());
+                }
+                // Kalkulasi subtotal berdasarkan selling_price v2
+                $totalPrice += $product->selling_price * $item['qty'];
             }
 
-            // Create order with kasir source
-            // Determine or create customer
+            // 2. Tentukan atau buat customer baru
             if ($request->customer_id === 'new') {
                 $customer = Customer::create([
                     'customers_name' => $request->new_customer_name,
@@ -82,10 +89,10 @@ class KasirController extends Controller
                     'customers_wa_id' => $request->new_customer_phone ?? null,
                 ]);
             } else {
-                $customer = Customer::find($request->customer_id);
+                $customer = Customer::findOrFail($request->customer_id);
             }
 
-            // Create order with kasir source
+            // 3. Simpan data Order Utama
             $orderData = [
                 'order_code' => $orderCode,
                 'customer_id' => $customer->id,
@@ -95,43 +102,76 @@ class KasirController extends Controller
                 'notes' => $request->notes,
             ];
 
-            // allow kurir assignment if provided (when status = shipped)
             if ($request->has('kurir_id') && $request->kurir_id) {
                 $orderData['kurir_id'] = $request->kurir_id;
             }
 
             $order = Order::create($orderData);
 
-            // Create order details
+            // 4. Proses Pengurangan Stok dengan Antrean Batch FIFO v2
             foreach ($productsList as $item) {
-                $product = Product::find($item['product_id']);
-                $subtotal = $product->price * $item['qty'];
+                $product = Product::where('id', $item['product_id'])->lockForUpdate()->findOrFail($item['product_id']);
+                $qtyNeeded = $item['qty'];
+                $sellingPrice = $product->selling_price;
+                $subtotal = $sellingPrice * $qtyNeeded;
 
+                // Tambah data Order Detail
                 OrderDetail::create([
                     'order_id' => $order->id,
-                    'product_id' => $item['product_id'],
-                    'qty' => $item['qty'],
-                    'buy_price' => $product->price,
+                    'product_id' => $product->id,
+                    'qty' => $qtyNeeded,
+                    'buy_price' => $sellingPrice,
                     'subtotal' => $subtotal,
                 ]);
 
-                // Reduce stock
-                $product->stock -= $item['qty'];
-                $product->save();
+                // Mengambil relasi stockEntries dari model v2\Product yang paling lama masuk
+                $batches = $product->stockEntries()
+                                   ->where('qty_remaining', '>', 0)
+                                   ->orderBy('created_at', 'asc')
+                                   ->lockForUpdate()
+                                   ->get();
+
+                foreach ($batches as $batch) {
+                    if ($qtyNeeded <= 0) break;
+
+                    $takeQty = min($qtyNeeded, $batch->qty_remaining);
+                    
+                    // Potong kuota sisa di batch v2
+                    $batch->qty_remaining -= $takeQty;
+                    $batch->save();
+
+                    // Masukkan ke log ledger stock_mutations
+                    DB::table('stock_mutations')->insert([
+                        'product_id' => $product->id,
+                        'stock_entry_id' => $batch->id,
+                        'reference_id' => $orderCode,
+                        'category' => 'sale',
+                        'type' => 'out',
+                        'qty' => $takeQty,
+                        'price' => $batch->purchase_price, // HPP modal dari batch v2 yang terpotong
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ]);
+
+                    $qtyNeeded -= $takeQty;
+                }
             }
 
-            // Create initial order history
+            // 5. Catat riwayat order status
             DB::table('order_histories')->insert([
                 'order_id' => $order->id,
                 'status' => $request->status,
-                'note' => 'Pesanan dibuat melalui sistem kasir',
+                'note' => 'Pesanan dibuat melalui sistem kasir menggunakan manajemen batch FIFO v2.',
                 'created_at' => now(),
                 'updated_at' => now(),
             ]);
+            
+            DB::commit();
+            return redirect()->route('admin.orders.show', $order)->with('success', 'Pesanan berhasil dibuat!');
 
-            return redirect()->route('kasir.show', $order)->with('success', 'Pesanan berhasil dibuat!');
         } catch (\Exception $e) {
-            return back()->with('error', 'Gagal membuat pesanan: ' . $e->getMessage());
+            DB::rollBack();
+            return back()->with('error', 'Gagal membuat pesanan: ' . $e->getMessage())->withInput();
         }
     }
 
@@ -140,7 +180,6 @@ class KasirController extends Controller
      */
     public function show(Order $order)
     {
-        // Make sure it's a kasir order
         if ($order->source !== 'kasir') {
             return redirect()->route('admin.orders.index')->with('error', 'Pesanan tidak ditemukan');
         }
@@ -161,7 +200,6 @@ class KasirController extends Controller
 
         $order->status = $request->status;
 
-        // Assign kurir if status is shipped
         if ($request->status === 'shipped' && $request->kurir_id) {
             $order->kurir_id = $request->kurir_id;
         }
@@ -186,7 +224,7 @@ class KasirController extends Controller
     }
 
     /**
-     * Delete kasir order
+     * Delete / Cancel kasir order (Mengembalikan kuota FIFO v2 & hapus mutasi terkait)
      */
     public function destroy(Order $order)
     {
@@ -194,14 +232,36 @@ class KasirController extends Controller
             return redirect()->route('admin.orders.index')->with('error', 'Pesanan tidak ditemukan');
         }
 
-        // Restore stock from order details
-        foreach ($order->details as $detail) {
-            $product = Product::find($detail->product_id);
-            $product->stock += $detail->qty;
-            $product->save();
-        }
+        DB::beginTransaction();
 
-        $order->delete();
-        return redirect()->route('admin.orders.index')->with('success', 'Pesanan berhasil dihapus!');
+        try {
+            // Ambil data mutasi keluar untuk dikembalikan posisinya ke batch asal v2
+            $mutations = DB::table('stock_mutations')
+                            ->where('reference_id', $order->order_code)
+                            ->where('type', 'out')
+                            ->get();
+
+            foreach ($mutations as $mutation) {
+                // FIX: Kunci baris entry batch yang ingin di-increment menggunakan lockForUpdate()
+                // agar aman dari pengguna link order yang checkout bersamaan saat restorasi stok berlangsung.
+                DB::table('stock_entries')
+                  ->where('id', $mutation->stock_entry_id)
+                  ->lockForUpdate() 
+                  ->increment('qty_remaining', $mutation->qty);
+            }
+
+            // Hapus log mutasi terkait dari ledger
+            DB::table('stock_mutations')->where('reference_id', $order->order_code)->delete();
+
+            // Hapus data order utama
+            $order->delete();
+
+            DB::commit();
+            return redirect()->route('admin.orders.index')->with('success', 'Pesanan dibatalkan dan stok batch FIFO v2 berhasil dipulihkan!');
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return redirect()->back()->with('error', 'Gagal menghapus pesanan: ' . $e->getMessage());
+        }
     }
 }
