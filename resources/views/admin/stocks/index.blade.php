@@ -52,15 +52,15 @@
     <!-- Header Page -->
     <div class="d-flex justify-content-between align-items-center mb-4">
     <div>
-        <h2 class="fw-bold text-dark mb-1">Manajemen Batch Stok (FIFO Batches)</h2>
-        <p class="text-muted small mb-0">Kelola kulakan barang masuk dan pantau porsi sisa tiap kuota batch persediaan.</p>
+        <h2 class="fw-bold text-dark mb-1">Kelola Data Persediaan (FIFO Batches)</h2>
+        <p class="text-muted small mb-0">Kelola persediaan barang masuk dan pantau porsi sisa tiap kuota batch persediaan.</p>
     </div>
     <div class="d-flex gap-2">
         <a href="{{ route('admin.stocks.adjustment') }}" class="btn btn-outline-danger px-4 py-2 rounded-3 fw-semibold shadow-sm">
-            <i class="bi bi-dash-circle me-2"></i>Stok Keluar / Adjustment
+            <i class="bi bi-dash-circle me-2"></i>Persediaan Keluar / Penyesuaian
         </a>
         <a href="{{ route('admin.stocks.create') }}" class="btn btn-primary px-4 py-2 rounded-3 fw-semibold shadow-sm">
-            <i class="bi bi-plus-circle me-2"></i>Catat Stok Masuk
+            <i class="bi bi-plus-circle me-2"></i>Catat Persediaan Masuk
         </a>
     </div>
 </div>

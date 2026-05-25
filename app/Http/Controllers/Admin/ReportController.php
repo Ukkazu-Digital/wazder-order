@@ -23,40 +23,71 @@ class ReportController extends Controller
      */
     private function getReportData($startDate, $endDate)
     {
-        return DB::table('stock_mutations')
-            ->join('products', 'products.id', '=', 'stock_mutations.product_id')
-            ->where('stock_mutations.type', 'out')
-            ->where('stock_mutations.category', 'sale')
-            ->whereBetween('stock_mutations.created_at', [$startDate . ' 00:00:00', $endDate . ' 23:59:59'])
+        // 1. Subquery untuk Total Masuk (Pembelian/Restock) s/d End Date
+        $totalIn = DB::table('stock_entries')
+            ->select('product_id', DB::raw('SUM(qty_received) as total_in'))
+            ->where('created_at', '<=', $endDate . ' 23:59:59')
+            ->groupBy('product_id');
+
+        // 2. Subquery untuk Total Keluar (Penjualan) s/d End Date
+        $totalOut = DB::table('stock_mutations')
+            ->select('product_id', DB::raw('SUM(qty) as total_out'))
+            ->where('type', 'out')
+            ->where('created_at', '<=', $endDate . ' 23:59:59')
+            ->groupBy('product_id');
+
+        return DB::table('products')
+            // Join ke mutasi khusus periode yang dipilih (untuk tabel laporan)
+            ->leftJoin('stock_mutations', function ($join) use ($startDate, $endDate) {
+                $join->on('products.id', '=', 'stock_mutations.product_id')
+                    ->where('stock_mutations.type', '=', 'out')
+                    ->where('stock_mutations.category', '=', 'sale')
+                    ->whereBetween('stock_mutations.created_at', [$startDate . ' 00:00:00', $endDate . ' 23:59:59']);
+            })
+            // Join ke subquery stok
+            ->leftJoinSub($totalIn, 'stock_in', 'products.id', '=', 'stock_in.product_id')
+            ->leftJoinSub($totalOut, 'stock_out', 'products.id', '=', 'stock_out.product_id')
             ->select(
+                'products.id',
                 'products.name',
-                DB::raw('SUM(stock_mutations.qty) as total_qty_sold'),
-                DB::raw('SUM(stock_mutations.qty * stock_mutations.price) as total_cost_hpp'),
-                DB::raw('SUM(stock_mutations.qty * products.selling_price) as estimated_revenue')
+                // Data Penjualan Periode Terpilih
+                DB::raw('COALESCE(SUM(stock_mutations.qty), 0) as total_qty_sold'),
+                DB::raw('COALESCE(SUM(stock_mutations.qty * stock_mutations.price), 0) as total_hpp_sold'),
+                DB::raw('COALESCE(SUM(stock_mutations.qty * products.selling_price), 0) as estimated_revenue'),
+                
+                // Perhitungan Stok Sisa per End Date
+                DB::raw('COALESCE(stock_in.total_in, 0) - COALESCE(stock_out.total_out, 0) as total_qty_in_stock'),
+                
+                // Estimasi Nilai Aset (menggunakan harga rata-rata sederhana atau harga beli terakhir)
+                // Catatan: Jika ingin akurasi FIFO 100%, gunakan logika valuation tabel stock_entries
+                DB::raw('(COALESCE(stock_in.total_in, 0) - COALESCE(stock_out.total_out, 0)) * products.selling_price as total_hpp_in_stock')
             )
-            ->groupBy('products.id', 'products.name')
-            ->orderBy('total_qty_sold', 'desc')
-            ->get();
+            ->groupBy('products.id', 'products.name', 'stock_in.total_in', 'stock_out.total_out', 'products.selling_price');
     }
 
-    /**
-     * Laporan Ringkasan Performa Toko (Dashboard / Profit Report HTML)
-     */
     public function profitReport(Request $request)
     {
-        // Default filter bulan ini jika user tidak memilih tanggal
         $startDate = $request->input('start_date', Carbon::now()->startOfMonth()->toDateString());
         $endDate = $request->input('end_date', Carbon::now()->endOfMonth()->toDateString());
+        $sortBy = $request->get('sort', 'desc');
 
-        // Ambil data performa menggunakan helper internal
-        $productPerformances = $this->getReportData($startDate, $endDate);
+        $query = $this->getReportData($startDate, $endDate);
 
-        // Hitung total akumulasi dari data yang difilter
+        // Menerapkan Sorting
+        $productPerformances = ($sortBy === 'asc') 
+            ? $query->orderBy('total_qty_in_stock', 'asc')->get() 
+            : $query->orderBy('total_qty_in_stock', 'desc')->get();
+
+        // Hitung Ringkasan
         $revenue = $productPerformances->sum('estimated_revenue');
-        $totalHpp = $productPerformances->sum('total_cost_hpp');
+        $totalHpp = $productPerformances->sum('total_hpp_sold');
         $grossProfit = $revenue - $totalHpp;
+        $totalAssetValue = $productPerformances->sum('total_hpp_in_stock');
 
-        return view('admin.reports.profit', compact('revenue', 'totalHpp', 'grossProfit', 'startDate', 'endDate', 'productPerformances'));
+        return view('admin.reports.profit', compact(
+            'revenue', 'totalHpp', 'grossProfit', 'totalAssetValue', 
+            'startDate', 'endDate', 'productPerformances', 'sortBy'
+        ));
     }
 
     /**
@@ -67,7 +98,7 @@ class ReportController extends Controller
         $startDate = $request->input('start_date', Carbon::now()->startOfMonth()->toDateString());
         $endDate = $request->input('end_date', Carbon::now()->endOfMonth()->toDateString());
 
-        $data = $this->getReportData($startDate, $endDate);
+        $data = $this->getReportData($startDate, $endDate)->get();
 
         return Excel::download(new ProfitReportExport($data, $startDate, $endDate), "Laporan_LabaRugi_FIFO_{$startDate}_to_{$endDate}.xlsx");
     }
@@ -80,14 +111,20 @@ class ReportController extends Controller
         $startDate = $request->input('start_date', Carbon::now()->startOfMonth()->toDateString());
         $endDate = $request->input('end_date', Carbon::now()->endOfMonth()->toDateString());
 
-        $productPerformances = $this->getReportData($startDate, $endDate);
+        // Ambil data (perlu ditambahkan ->get() jika di helper belum ada)
+        $productPerformances = $this->getReportData($startDate, $endDate)->get();
         
+        // Perhitungan ringkasan
         $revenue = $productPerformances->sum('estimated_revenue');
-        $totalHpp = $productPerformances->sum('total_cost_hpp');
+        $totalHpp = $productPerformances->sum('total_hpp_sold'); // Sesuaikan dengan nama alias di query
         $grossProfit = $revenue - $totalHpp;
+        $totalAssetValue = $productPerformances->sum('total_hpp_in_stock'); // Tambahkan ini
 
-        $pdf = Pdf::loadView('admin.reports.profit_pdf', compact('revenue', 'totalHpp', 'grossProfit', 'startDate', 'endDate', 'productPerformances'))
-                  ->setPaper('a4', 'portrait');
+        // Kirim semua variabel ke view PDF
+        $pdf = Pdf::loadView('admin.reports.profit_pdf', compact(
+            'revenue', 'totalHpp', 'grossProfit', 'totalAssetValue', 'startDate', 'endDate', 'productPerformances'
+        ))
+        ->setPaper('a4', 'portrait');
 
         return $pdf->stream("Laporan_Keuntungan_FIFO_{$startDate}_s_d_{$endDate}.pdf");
     }

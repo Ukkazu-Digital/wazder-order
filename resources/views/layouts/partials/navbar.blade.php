@@ -31,12 +31,12 @@
 
                 <li class="nav-item dropdown">
                     <a class="nav-link dropdown-toggle py-2 px-3 rounded-2 text-secondary" href="#" id="navbarDropdownData" role="button" data-bs-toggle="dropdown">
-                        <i class="bi bi-folder2-open me-1"></i> Master Data
+                        <i class="bi bi-folder2-open me-1"></i> Data Utama
                     </a>
                     <ul class="dropdown-menu border-0 shadow-md p-2 mt-2 rounded-3">
                         <li><a class="dropdown-item py-2 px-3 rounded-2 {{ request()->routeIs('admin.v2.products.*') ? 'active-link' : '' }}" href="{{ route('admin.v2.products.index') }}"><i class="bi bi-box-seam me-2"></i> Produk</a></li>
-                        <li><a class="dropdown-item py-2 px-3 rounded-2 {{ request()->routeIs('admin.stocks.*') ? 'active-link' : '' }}" href="{{ route('admin.stocks.index') }}"><i class="bi bi-tags me-2"></i> Batch FIFO Stok</a></li>
-                        <li><a class="dropdown-item py-2 px-3 rounded-2 {{ request()->routeIs('admin.customers.*') ? 'active-link' : '' }}" href="{{ route('admin.customers.index') }}"><i class="bi bi-people me-2"></i> Database Customer</a></li>
+                        <li><a class="dropdown-item py-2 px-3 rounded-2 {{ request()->routeIs('admin.stocks.*') ? 'active-link' : '' }}" href="{{ route('admin.stocks.index') }}"><i class="bi bi-tags me-2"></i> Persediaan</a></li>
+                        <li><a class="dropdown-item py-2 px-3 rounded-2 {{ request()->routeIs('admin.customers.*') ? 'active-link' : '' }}" href="{{ route('admin.customers.index') }}"><i class="bi bi-people me-2"></i> Pelanggan</a></li>
                         <li><a class="dropdown-item py-2 px-3 rounded-2 {{ request()->routeIs('admin.kurirs.*') ? 'active-link' : '' }}" href="{{ route('admin.kurirs.index') }}"><i class="bi bi-truck me-2"></i> Manajemen Kurir</a></li>
                     </ul>
                 </li>

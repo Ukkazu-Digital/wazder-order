@@ -22,32 +22,31 @@
             </a>
         </div>
     </header>
-
-    <section class="bg-white p-4 p-md-4 mb-4 shadow-sm rounded-4 border border-light">
-        <form action="{{ route('admin.reports.profit.index') }}" method="GET" class="row g-3 align-items-end">
-            <div class="col-12 col-md-3">
-                <label class="form-label small fw-bold text-uppercase text-muted">Tanggal Mulai</label>
-                <input type="date" name="start_date" value="{{ $startDate }}" class="form-control form-control-lg bg-light border-0 rounded-3">
-            </div>
-            <div class="col-12 col-md-3">
-                <label class="form-label small fw-bold text-uppercase text-muted">Tanggal Akhir</label>
-                <input type="date" name="end_date" value="{{ $endDate }}" class="form-control form-control-lg bg-light border-0 rounded-3">
-            </div>
-            <div class="col-12 col-md-3">
-                <button type="submit" class="btn btn-dark btn-lg w-100 rounded-3 shadow">
-                    Update Laporan
-                </button>
-            </div>
-        </form>
-    </section>
-
-    <section class="row g-4 mb-4">
+    <section class="bg-white p-4 mb-4 shadow-sm rounded-4 border border-light">
+    <form action="{{ route('admin.reports.profit.index') }}" method="GET" class="row g-3 align-items-end">
+        <div class="col-12 col-md-4">
+            <label class="form-label small fw-bold text-uppercase text-muted">Tanggal Mulai</label>
+            <input type="date" name="start_date" value="{{ $startDate }}" class="form-control form-control-lg bg-light border-0 rounded-3">
+        </div>
+        <div class="col-12 col-md-4">
+            <label class="form-label small fw-bold text-uppercase text-muted">Tanggal Akhir</label>
+            <input type="date" name="end_date" value="{{ $endDate }}" class="form-control form-control-lg bg-light border-0 rounded-3">
+        </div>
+        <div class="col-12 col-md-4">
+            <button type="submit" class="btn btn-dark btn-lg w-100 rounded-3 shadow">
+                <i class="bi bi-funnel"></i> Update Laporan
+            </button>
+        </div>
+    </form>
+</section>
+   <section class="row g-4 mb-4">
         @foreach([
             ['label' => 'Total Pendapatan', 'value' => $revenue, 'color' => 'text-dark', 'icon' => 'bi-wallet2'],
             ['label' => 'Total Beban HPP', 'value' => $totalHpp, 'color' => 'text-danger', 'icon' => 'bi-box-arrow-down'],
-            ['label' => 'Laba Bersih', 'value' => $grossProfit, 'color' => 'text-success', 'icon' => 'bi-graph-up-arrow']
+            ['label' => 'Laba Bersih', 'value' => $grossProfit, 'color' => 'text-success', 'icon' => 'bi-graph-up-arrow'],
+            ['label' => 'Total Nilai Aset', 'value' => $totalAssetValue, 'color' => 'text-primary', 'icon' => 'bi-archive']
         ] as $card)
-            <div class="col-12 col-md-4">
+            <div class="col-12 col-md-3">
                 <div class="card border-0 shadow-sm rounded-4 h-100 p-4">
                     <div class="d-flex align-items-center gap-2 text-muted mb-3">
                         <i class="bi {{ $card['icon'] }}"></i>
@@ -62,7 +61,10 @@
     <section class="bg-white shadow-sm rounded-4 border border-light overflow-hidden">
         <div class="p-4 border-bottom border-light d-flex justify-content-between align-items-center">
             <h5 class="fw-bold m-0">Performa Produk</h5>
-            <span class="badge bg-light text-dark rounded-pill px-3">{{ count($productPerformances) }} Produk</span>
+            <div class="btn-group">
+                <a href="{{ request()->fullUrlWithQuery(['sort' => 'desc']) }}" class="btn btn-sm {{ $sortBy == 'desc' ? 'btn-dark' : 'btn-outline-dark' }}">Stok Terbanyak</a>
+                <a href="{{ request()->fullUrlWithQuery(['sort' => 'asc']) }}" class="btn btn-sm {{ $sortBy == 'asc' ? 'btn-dark' : 'btn-outline-dark' }}">Stok Tersedikit</a>
+            </div>
         </div>
         <div class="table-responsive">
             <table class="table table-hover align-middle mb-0">
@@ -73,6 +75,8 @@
                         <th class="py-3 px-4 text-end">Omset</th>
                         <th class="py-3 px-4 text-end">HPP</th>
                         <th class="py-3 px-4 text-end">Margin</th>
+                        <th class="py-3 px-4 text-center bg-light border-start">Stok Gudang</th>
+                        <th class="py-3 px-4 text-end bg-light">Nilai Aset</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -81,11 +85,13 @@
                             <td class="py-3 px-4 fw-bold text-dark">{{ $p->name }}</td>
                             <td class="py-3 px-4 text-center font-monospace text-secondary">{{ $fmt($p->total_qty_sold) }}</td>
                             <td class="py-3 px-4 text-end font-monospace">Rp {{ $fmt($p->estimated_revenue) }}</td>
-                            <td class="py-3 px-4 text-end font-monospace text-danger">Rp {{ $fmt($p->total_cost_hpp) }}</td>
-                            <td class="py-3 px-4 text-end font-monospace fw-bold text-success">Rp {{ $fmt($p->estimated_revenue - $p->total_cost_hpp) }}</td>
+                            <td class="py-3 px-4 text-end font-monospace text-danger">Rp {{ $fmt($p->total_hpp_sold) }}</td>
+                            <td class="py-3 px-4 text-end font-monospace fw-bold text-success">Rp {{ $fmt($p->estimated_revenue - $p->total_hpp_sold) }}</td>
+                            <td class="py-3 px-4 text-center font-monospace fw-bold border-start bg-light">{{ $fmt($p->total_qty_in_stock) }}</td>
+                            <td class="py-3 px-4 text-end font-monospace text-muted bg-light">Rp {{ $fmt($p->total_hpp_in_stock) }}</td>
                         </tr>
                     @empty
-                        <tr><td colspan="5" class="text-center py-5 text-muted italic">Data belum tersedia</td></tr>
+                        <tr><td colspan="7" class="text-center py-5 text-muted italic">Data belum tersedia</td></tr>
                     @endforelse
                 </tbody>
             </table>

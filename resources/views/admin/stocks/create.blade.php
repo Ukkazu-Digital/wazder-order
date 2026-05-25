@@ -32,7 +32,7 @@
 <div class="container py-4">
     <div class="mb-3">
         <a href="{{ route('admin.stocks.index') }}" class="text-decoration-none text-primary fw-semibold small">
-            <i class="bi bi-arrow-left me-1"></i>Kembali ke Log Stok
+            <i class="bi bi-arrow-left me-1"></i>Kembali ke Log Persediaan
         </a>
     </div>
 
@@ -40,7 +40,7 @@
         <div class="col-md-8">
             <div class="form-wrapper">
                 <div class="mb-4">
-                    <h3 class="fw-bold text-dark mb-1">Penerimaan Stok Gudang</h3>
+                    <h3 class="fw-bold text-dark mb-1">Penerimaan Persediaan Gudang</h3>
                     <p class="text-muted small">Input barang masuk untuk menerbitkan batch antrean baru pada perhitungan FIFO Anda.</p>
                 </div>
 
@@ -70,7 +70,7 @@
                                         data-buy="{{ $lastBatchPrice }}" 
                                         data-selling="{{ $product->selling_price ?? 0 }}"
                                         {{ old('product_id') == $product->id ? 'selected' : '' }}>
-                                    {{ $product->name }} (Stok Saat Ini: {{ $product->totalStock() }} pcs)
+                                    {{ $product->name }} (Persediaan Saat Ini: {{ $product->totalStock() }} pcs)
                                 </option>
                             @endforeach
                         </select>
@@ -130,11 +130,11 @@
                     <div class="mb-4">
                         <label for="reference_id" class="form-label fw-semibold text-secondary small">No. Invoice / Nota Supplier (Opsional)</label>
                         <input type="text" name="reference_id" id="reference_id" value="{{ old('reference_id') }}" placeholder="Contoh: INV-2026/05/12" class="form-control rounded-3 p-2.5 fs-6 font-monospace">
-                        <div class="form-text text-muted" style="font-size: 11px;">Membantu pencarian dan pelacakan audit jika terjadi selisih stok dengan supplier.</div>
+                        <div class="form-text text-muted" style="font-size: 11px;">Membantu pencarian dan pelacakan audit jika terjadi selisih persediaan dengan supplier.</div>
                     </div>
 
                     <button type="submit" class="btn btn-primary w-100 py-2.5 rounded-3 fw-semibold shadow-sm">
-                        <i class="bi bi-file-earmark-plus me-2"></i>Amankan Stok Masuk
+                        <i class="bi bi-file-earmark-plus me-2"></i>Amankan Persediaan Masuk
                     </button>
                 </form>
             </div>

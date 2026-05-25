@@ -76,7 +76,9 @@
 <div class="container py-4">
     <!-- Header Page -->
     <div class="mb-4">
-        <h2 class="fw-bold text-dark mb-1">Manajemen Customer</h2>
+        <h2 class="fw-bold text-dark mb-1">
+            Kelola Data Pelanggan
+        </h2>
         <p class="text-muted small mb-0">Pantau loyalitas data pelanggan, riwayat kuantitas order, serta informasi domisili pengiriman.</p>
     </div>
 

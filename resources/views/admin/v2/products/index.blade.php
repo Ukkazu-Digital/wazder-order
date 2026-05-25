@@ -70,8 +70,8 @@
     <!-- Header Page -->
     <div class="d-flex justify-content-between align-items-center mb-4">
         <div>
-            <h2 class="fw-bold text-dark mb-1">Manajemen Produk FIFO</h2>
-            <p class="text-muted small mb-0">Pantau valuasi aset dan sisa stok riil dari setiap batch kulakan.</p>
+            <h2 class="fw-bold text-dark mb-1">Kelola Data Produk</h2>
+            <p class="text-muted small mb-0">Pantau valuasi aset dan sisa stok riil dari setiap batch penjualan.</p>
         </div>
         <a href="{{ route('admin.v2.products.create') }}" class="btn btn-primary px-4 py-2 rounded-3 fw-semibold shadow-sm">
             <i class="bi bi-plus-circle me-2"></i>Tambah Produk Baru

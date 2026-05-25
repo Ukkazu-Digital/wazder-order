@@ -36,33 +36,47 @@ class ProfitReportExport implements FromCollection, WithHeadings, WithMapping, W
     public function headings(): array
     {
         return [
-            ['LAPORAN LABA RUGI BERSIH (METODE FIFO)'],
+            ['LAPORAN LABA RUGI & VALUASI ASET (METODE FIFO)'],
             ['Periode Pencatatan:', $this->startDate . ' s/d ' . $this->endDate],
             [], 
-            ['Nama Item Produk', 'Jumlah Terjual (Qty)', 'Estimasi Omset Kotor', 'Total HPP FIFO', 'Total Laba Kotor']
+            [
+                'Nama Item Produk', 
+                'Jumlah Terjual (Qty)', 
+                'Estimasi Omset Kotor', 
+                'Total HPP Terjual', 
+                'Total Laba Kotor',
+                'Stok Gudang (Sisa)',
+                'Nilai Aset Modal Gudang'
+            ]
         ];
     }
 
     public function map($product): array
     {
-        $margin = $product->estimated_revenue - $product->total_cost_hpp;
+        // Sesuaikan dengan alias yang kita gunakan di query:
+        // total_hpp_sold (terjual), total_qty_in_stock (sisa), total_hpp_in_stock (aset)
+        $margin = $product->estimated_revenue - $product->total_hpp_sold;
         
         return [
             $product->name,
             (int) $product->total_qty_sold,
             (float) $product->estimated_revenue,
-            (float) $product->total_cost_hpp,
-            (float) $margin
+            (float) $product->total_hpp_sold,
+            (float) $margin,
+            (int) $product->total_qty_in_stock,
+            (float) $product->total_hpp_in_stock
         ];
     }
 
     public function columnFormats(): array
     {
         return [
-            'B' => NumberFormat::FORMAT_NUMBER_COMMA_SEPARATED1,
-            'C' => '"Rp "#,##0',
-            'D' => '"Rp "#,##0',
-            'E' => '"Rp "#,##0',
+            'B' => NumberFormat::FORMAT_NUMBER, // Qty terjual
+            'C' => '"Rp "#,##0', // Omset
+            'D' => '"Rp "#,##0', // HPP Terjual
+            'E' => '"Rp "#,##0', // Margin
+            'F' => NumberFormat::FORMAT_NUMBER, // Stok Sisa
+            'G' => '"Rp "#,##0', // Nilai Aset
         ];
     }
 }

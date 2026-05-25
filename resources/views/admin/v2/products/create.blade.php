@@ -45,8 +45,8 @@
         <div class="col-md-8">
             <div class="form-wrapper">
                 <div class="mb-4">
-                    <h3 class="fw-bold text-dark mb-1">Tambah Produk & Master Data</h3>
-                    <p class="text-muted small">Daftarkan produk baru beserta inisiasi batch stok perdana Anda.</p>
+                    <h3 class="fw-bold text-dark mb-1">Tambah Produk & Data Utama</h3>
+                    <p class="text-muted small">Daftarkan produk baru beserta inisiasi batch persediaan perdana Anda.</p>
                 </div>
 
                 <!-- Form Validation Errors -->

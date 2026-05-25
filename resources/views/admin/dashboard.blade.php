@@ -153,8 +153,8 @@
                         <div class="bg-light rounded-circle d-inline-flex p-3 mb-3 mx-auto text-warning fs-4">
                             <i class="bi bi-tags-fill"></i>
                         </div>
-                        <h6 class="fw-bold text-dark mb-1">Batch Stok</h6>
-                        <span class="text-muted small">Antrean FIFO</span>
+                        <h6 class="fw-bold text-dark mb-1">Persediaan</h6>
+                        <span class="text-muted small">Kelola Stok</span>
                     </div>
                 </a>
             </div>
@@ -165,8 +165,8 @@
                         <div class="bg-light rounded-circle d-inline-flex p-3 mb-3 mx-auto text-info fs-4">
                             <i class="bi bi-people-fill"></i>
                         </div>
-                        <h6 class="fw-bold text-dark mb-1">Customer</h6>
-                        <span class="text-muted small">Database Klien</span>
+                        <h6 class="fw-bold text-dark mb-1">Pelanggan</h6>
+                        <span class="text-muted small">Kelola Data Pelanggan</span>
                     </div>
                 </a>
             </div>
