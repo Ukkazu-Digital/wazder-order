@@ -12,7 +12,7 @@ class Order extends Model
     use SoftDeletes;
 
     protected $table = 'orders';
-    protected $fillable = ['order_code','customer_id','kurir_id','total_price','status','source','notes'];
+    protected $fillable = ['order_code','customer_id','kurir_id','total_price','status','source','notes','payment_method'];
 
     /**
      * Relasi ke Customer (Satu Order dimiliki oleh satu Customer)
@@ -50,5 +50,10 @@ class Order extends Model
     public function histories()
     {
         return $this->hasMany(OrderHistory::class, 'order_id');
+    }
+
+    public function termOfPayment()
+    {
+        return $this->hasOne(TermOfPayment::class, 'order_id');
     }
 }

@@ -200,14 +200,14 @@
             
             <div class="d-flex gap-2">
                 <a href="{{ route('admin.orders.show', $order) }}" class="btn btn-outline-secondary btn-sm flex-fill">
-                    <i class="bi bi-arrow-left-short"></i> Detail Order
+                    <i class="bi bi-arrow-left-short"></i> Kembali
                 </a>
                 
                 <form action="{{ route('admin.orders.sendInvoice', $order) }}" method="POST" class="flex-fill">
                     @csrf
-                    <button type="submit" class="btn btn-success btn-sm w-100" onclick="return confirm('Kirim berkas PDF struk belanja ini via WhatsApp?')">
-                        <i class="bi bi-whatsapp me-1"></i> Kirim WA
-                    </button>
+                    {{-- <button type="submit" class="btn btn-success btn-sm w-100" onclick="return confirm('Kirim berkas PDF struk belanja ini via WhatsApp?')"> --}}
+                        {{-- <i class="bi bi-whatsapp me-1"></i> Kirim WA --}}
+                    {{-- </button> --}}
                 </form>
             </div>
         </div>

@@ -118,9 +118,9 @@
                                 </a>
                                 
                                 @if (in_array($order->status, ['paid', 'shipped', 'completed']))
-                                <a href="{{ route('admin.orders.invoice', $order) }}" target="_blank" class="btn btn-sm btn-outline-secondary rounded-3 px-2 py-1" title="Cetak Struk">
-                                    <i class="bi bi-printer-fill"></i> <span class="d-none d-xl-inline ms-1">Struk</span>
-                                </a>
+                                {{-- <a href="{{ route('admin.orders.invoice', $order) }}" target="_blank" class="btn btn-sm btn-outline-secondary rounded-3 px-2 py-1" title="Cetak Struk"> --}}
+                                    {{-- <i class="bi bi-printer-fill"></i> <span class="d-none d-xl-inline ms-1">Struk</span> --}}
+                                {{-- </a> --}}
                                 @endif
                                 
                                 <form action="{{ route('admin.orders.destroy', $order) }}" method="POST" style="display:inline-block">

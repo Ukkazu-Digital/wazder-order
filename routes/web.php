@@ -128,4 +128,13 @@ Route::middleware('auth')->group(function () {
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 });
 
+Route::get('/clear-cache', function() {
+    Artisan::call('cache:clear');
+    Artisan::call('config:clear');
+    Artisan::call('route:clear');
+    Artisan::call('view:clear');
+    return "Cache Cleared!";
+})->name('clear.cache');
+
+Route::get('/stock-check', [DashboardController::class, 'checkLowStock'])->name('stock.check');
 require __DIR__.'/auth.php';

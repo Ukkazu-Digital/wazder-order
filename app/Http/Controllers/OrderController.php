@@ -24,9 +24,7 @@ class OrderController extends Controller
 
     public function __construct()
     {
-        $this->token = env('WHATSAPP_TOKEN');
-        $this->phoneId = env('WHATSAPP_PHONE_NUMBER_ID');
-        $this->apiUrl = "https://graph.facebook.com/v25.0/{$this->phoneId}/messages";
+        $this->apiUrl = "https://api.junandia.my.id/v1/";
     }
 
     /**
@@ -258,16 +256,10 @@ class OrderController extends Controller
 
         $encodedCode = base64_encode($data['order_code']);
         $bodyContent = "Pesanan {$data['order_code']} berhasil. Total: Rp " . number_format($data['total'], 0, ',', '.');
-        
         $payload = [
-            'messaging_product' => 'whatsapp',
             'to' => $data['phone'],
-            'type' => 'template',
-            'template' => [
-                'name' => 'pesanan_sukses',
-                'language' => ['code' => 'id'],
-                'components' => [
-                    [
+            'template_name' => 'pesanan_sukses',
+            'components' => [
                         'type' => 'body',
                         'parameters' => [
                             ['type' => 'text', 'text' => $data['order_code']],
@@ -282,26 +274,13 @@ class OrderController extends Controller
                         'parameters' => [
                             ['type' => 'text', 'text' => $encodedCode]
                         ]
-                    ]
-                ]
-            ]
+                    ]                    
         ];
 
-        $response = Http::withToken($this->token)->post($this->apiUrl, $payload);
+        $response = Http::post($this->apiUrl, $payload);
 
         if ($response->successful()) {
             Log::info("API Meta SUCCESS mengirim template ke " . $payload['to']);
-            
-            DB::table('messages')->insert([
-                'msg_id' => data_get($response->json(), 'messages.0.id'),
-                'contact_wa_id' => $payload['to'],
-                'direction' => 'outbound',
-                'type' => 'template',
-                'body' => $bodyContent,
-                'status' => 'sent',
-                'timestamp_unix' => time(),
-                'created_at' => Carbon::now(),
-            ]);
         } else {
             Log::error("API Meta FAILED mengirim template", [
                 'response' => $response->json(),

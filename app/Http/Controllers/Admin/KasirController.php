@@ -9,8 +9,10 @@ use App\Models\OrderDetail;
 use App\Models\Customer;
 use App\Models\v2\Product; // Menggunakan model Product dari sub-namespace v2
 use App\Models\Kurir;
+use App\Models\Contact;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Illuminate\Support\Carbon;
 
 class KasirController extends Controller
 {
@@ -88,6 +90,12 @@ class KasirController extends Controller
                     'address' => $request->new_customer_address ?? null,
                     'customers_wa_id' => $request->new_customer_phone ?? null,
                 ]);
+                Contact::create([
+                    'name' => $request->new_customer_name,
+                    'wa_id' => $request->new_customer_phone ?? null,
+                    'customer_id' => $customer->id,
+                    'last_status' => 'awaiting_response_bot'
+                ]);
             } else {
                 $customer = Customer::findOrFail($request->customer_id);
             }
@@ -157,14 +165,34 @@ class KasirController extends Controller
                 }
             }
 
-            // 5. Catat riwayat order status
-            DB::table('order_histories')->insert([
-                'order_id' => $order->id,
-                'status' => $request->status,
-                'note' => 'Pesanan dibuat melalui sistem kasir menggunakan manajemen batch FIFO v2.',
-                'created_at' => now(),
-                'updated_at' => now(),
-            ]);
+            //insert ke term of payment jika status TOP
+            if ($request->status === 'TOP') {
+                $top = DB::table('term_of_payments')->insert([
+                    'order_id' => $order->id,
+                    'payment_due_date' => Carbon::parse('2026-06-30')->format('Y-m-d 23:59:59'), // Contoh: Jatuh tempo 7 hari setelah order
+                    'amount_due' => $totalPrice,
+                    'status' => 'unpaid',
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+
+                DB::table('order_histories')->insert([
+                    'order_id' => $order->id,
+                    'status' => 'TOP',
+                    'note' => 'Pesanan dibuat dengan status TOP, jatuh tempo pada ' . $request->due_date,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+            }else{
+                // 5. Catat riwayat order status
+                DB::table('order_histories')->insert([
+                    'order_id' => $order->id,
+                    'status' => $request->status,
+                    'note' => 'Pesanan dibuat melalui sistem kasir menggunakan manajemen batch FIFO v2.',
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+            }
             
             DB::commit();
             return redirect()->route('admin.orders.show', $order)->with('success', 'Pesanan berhasil dibuat!');
@@ -269,13 +297,15 @@ class KasirController extends Controller
     {
         $search = $request->get('q');
         $customers = Customer::where('customers_name', 'LIKE', "%$search%")
+                            ->leftJoin('contacts', 'customers.id', '=', 'contacts.customer_id')
+                            ->orWhere('contacts.wa_id', 'LIKE', "%$search%")
                             ->limit(10)
                             ->get();
 
         $results = $customers->map(function($customer) {
             return [
                 'id' => $customer->id,
-                'text' => $customer->customers_name . ' - ' . $customer->phone
+                'text' => $customer->customers_name . ' - ' . $customer->wa_id
             ];
         });
 

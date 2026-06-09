@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\v2\StockEntry;
 use App\Models\v2\StockMutation;
+use App\Models\v2\Product;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -54,6 +55,12 @@ class DashboardController extends Controller
             ->take(5)
             ->get();
 
+        // $notification = [
+        //     'lowStock' => $this->checkLowStock(), // Fungsi untuk memeriksa stok rendah
+        //     'pendingOrders' => $this->checkPendingOrders(), // Fungsi untuk memeriksa pesanan yang belum selesai
+        //     'reminderPayments' => $this->checkPaymentReminders(), // Fungsi untuk memeriksa pengingat pembayaran
+        // ];
+
         // Kirim semua variabel ringkasan ke file view dashboard
         return view('admin.dashboard', compact(
             'thisMonthRevenue', 
@@ -62,5 +69,28 @@ class DashboardController extends Controller
             'currentAssetValuation',
             'topProducts'
         ));
+    }
+
+    public function checkLowStock()
+    {
+        return Carbon::parse('2026-06-30')->format('Y-m-d 23:59:59');
+    }
+
+    private function checkPendingOrders()
+    {
+        // Logika untuk memeriksa pesanan yang belum selesai
+        return DB::table('orders')
+            ->where('status', 'pending')
+            ->count();
+    }
+
+    private function checkPaymentReminders()
+    {
+        // Logika untuk memeriksa pengingat pembayaran yang belum dibayar
+        return DB::table('orders')
+            ->join('term_of_payments', 'orders.id', '=', 'term_of_payments.order_id')
+            ->where('status', 'TOP')
+            ->where('payment_due_date', '<=', Carbon::now())
+            ->count();
     }
 }

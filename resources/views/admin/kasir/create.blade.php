@@ -163,7 +163,7 @@
                                 </div>
                                 <div class="mb-0">
                                     <label class="form-label small mb-1">No HP (WhatsApp)</label>
-                                    <input type="text" name="new_customer_phone" class="form-control form-control-sm">
+                                    <input type="text" name="new_customer_phone" class="form-control form-control-sm" value="62">
                                 </div>
                             </div>
                         </div>
@@ -171,15 +171,31 @@
                         <!-- Status Bayar -->
                         <div class="mb-3">
                             <label for="status" class="form-label fw-bold text-muted small">STATUS</label>
-                            <select class="form-select" id="status" name="status" required onchange="handleStatusChange()">
-                                <option value="pending">Pending</option>
-                                <option value="paid">Paid (Lunas)</option>
-                                <option value="shipped">Shipped (Dikirim Kurir)</option>
-                                <option value="completed">Completed</option>
-                                <option value="cancelled">Cancelled</option>
+                            <select class="form-select" id="status" name="status" required onchange="handleStatusChange()" >
+                                <option value="" readonly>-- Pilih Status Transaksi --</option>
+                                {{-- <option value="pending">Pending</option> --}}
+                                <option value="paid">Lunas (Paid)</option>
+                                <option value="TOP">Tempo (Term Of Payment)</option>
+                                {{-- <option value="shipped">Shipped (Dikirim Kurir)</option> --}}
+                                {{-- <option value="completed">Completed</option> --}}
+                                {{-- <option value="cancelled">Cancelled</option> --}}
                             </select>
                             <div class="invalid-feedback">Pilih status transaksi.</div>
-
+                            <div id="duedateField" class="mt-2" style="display: none;">
+                                <label for="duedate_input" class="form-label small mb-1 text-muted">Jatuh Tempo Pembayaran</label>
+                                <input type="date" id="duedate_input" name="due_date" class="form-control form-control-sm">
+                                <div class="invalid-feedback">Jatuh tempo wajib diisi jika status Tempo.</div>
+                            </div>
+                            <div id="paymentMethodField" class="mt-2" style="display: none;">
+                                <label for="payment_method" class="form-label small mb-1 text-muted">Metode Pembayaran</label>
+                                <select name="payment_method" id="payment_method" class="form-select form-select-sm">
+                                    <option value="">-- Pilih Metode Pembayaran --</option>
+                                    <option value="cash">Tunai (Cash)</option>
+                                    <option value="tf">Transfer Bank</option>
+                                    {{-- <option value="e_wallet">E-Wallet</option> --}}
+                                    {{-- <option value="credit_card">Kartu Kredit</option> --}}
+                                </select>
+                                <div class="invalid-feedback" id="paymentMethodFeedback">Metode pembayaran wajib dipilih jika status Lunas.</div>
                             <div id="kurirFieldCreate" class="mt-2" style="display: none;">
                                 <label for="kurir_id" class="form-label small mb-1 text-muted">Petugas Kurir</label>
                                 <select name="kurir_id" id="kurir_id" class="form-select form-select-sm">
@@ -234,7 +250,7 @@
     $('#select-customer').select2({
         theme: "bootstrap-5",
         width: '100%',
-        placeholder: "Cari nama atau no HP konsumen...",
+        placeholder: "Cari nama atau no HP konsumen",
         allowClear: true,
         ajax: {
             url: '{{ route("admin.kasir.search_customer") }}',
@@ -378,15 +394,32 @@
         const status = document.getElementById('status').value;
         const kurirField = document.getElementById('kurirFieldCreate');
         const kurirSelect = document.getElementById('kurir_id');
+        const duedateField = document.getElementById('duedateField');
+        const duedateInput = document.getElementById('duedate_input');
+        const paymentMethodField = document.getElementById('paymentMethodField');
         
         if (!kurirField || !kurirSelect) return;
         
         if (status === 'shipped') {
             kurirField.style.display = 'block';
             kurirSelect.setAttribute('required', 'required');
+        } else if (status === 'TOP') {
+            duedateField.style.display = 'block';
+            duedateInput.setAttribute('required', 'required');
+            paymentMethodField.style.display = 'none';
+            paymentMethodField.removeAttribute('required');
+        } else if (status === 'paid') {
+            paymentMethodField.style.display = 'block';
+            paymentMethodField.setAttribute('required', 'required');
+            duedateField.style.display = 'none';
+            duedateInput.removeAttribute('required');
         } else {
+            duedateField.style.display = 'none';
+            duedateInput.removeAttribute('required');
             kurirField.style.display = 'none';
             kurirSelect.removeAttribute('required');
+            paymentMethodField.style.display = 'none';
+            paymentMethodField.removeAttribute('required');
         }
     }
 

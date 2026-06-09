@@ -164,7 +164,11 @@
                     </div>
                 </div>
             </div>
-
+        <div class="mb-4" align="right"></hr><br/>
+            <a href="{{ route('admin.orders.invoice', $order) }}" target="_blank" class="btn btn-sm btn-outline-secondary rounded-3 px-2 py-1" title="Cetak Struk">
+                <i class="bi bi-printer-fill"></i> <span class="d-none d-xl-inline ms-1">Struk</span>
+            </a>
+        </div> <!-- Spacer antara card dan kolom kanan -->
         </div>
 
         <!-- KOLOM KANAN: Update Form (Bisa Terkunci) & Order History Timeline -->
