@@ -10,63 +10,6 @@
 
     <div class="mb-5">
         <div class="d-flex align-items-center mb-3">
-            <div class="bg-success opacity-10 rounded-circle me-2" style="width: 8px; height: 8px;"></div>
-            <h5 class="fw-bold text-uppercase tracking-wider text-secondary small mb-0">Ringkasan Finansial Bulan Ini</h5>
-        </div>
-        
-        <div class="row g-3">
-            <div class="col-12 col-sm-6 col-xl-3">
-                <div class="card border-0 shadow-sm bg-white rounded-3 p-3 h-100">
-                    <div class="card-body p-2 flex-grow-1">
-                        <small class="text-uppercase tracking-wider text-muted font-semibold small">Omset Berjalan</small>
-                        <h3 class="fw-bold text-dark mt-2 mb-0">Rp {{ number_format($thisMonthRevenue, 0, ',', '.') }}</h3>
-                    </div>
-                    <div class="card-footer bg-transparent border-0 pt-0 px-2">
-                        <small class="text-muted text-xs">Total penjualan bruto kotor</small>
-                    </div>
-                </div>
-            </div>
-
-            <div class="col-12 col-sm-6 col-xl-3">
-                <div class="card border-0 shadow-sm bg-white rounded-3 p-3 h-100">
-                    <div class="card-body p-2 flex-grow-1">
-                        <small class="text-uppercase tracking-wider text-danger font-semibold small">Beban HPP (FIFO)</small>
-                        <h3 class="fw-bold text-danger mt-2 mb-0">Rp {{ number_format($thisMonthHpp, 0, ',', '.') }}</h3>
-                    </div>
-                    <div class="card-footer bg-transparent border-0 pt-0 px-2">
-                        <small class="text-muted text-xs">Nilai pokok tumpukan keluar</small>
-                    </div>
-                </div>
-            </div>
-
-            <div class="col-12 col-sm-6 col-xl-3">
-                <div class="card border-0 shadow-sm bg-emerald-soft rounded-3 p-3 h-100" style="border-left: 4px solid #198754 !important;">
-                    <div class="card-body p-2 flex-grow-1">
-                        <small class="text-uppercase tracking-wider text-success font-semibold small">Laba Bersih Operasional</small>
-                        <h3 class="fw-bold text-success mt-2 mb-0">Rp {{ number_format($thisMonthProfit, 0, ',', '.') }}</h3>
-                    </div>
-                    <div class="card-footer bg-transparent border-0 pt-0 px-2">
-                        <small class="text-success text-xs fw-medium">Net margin performa ritel</small>
-                    </div>
-                </div>
-            </div>
-
-            <div class="col-12 col-sm-6 col-xl-3">
-                <div class="card border-0 shadow-sm bg-blue-soft rounded-3 p-3 h-100" style="border-left: 4px solid #0d6efd !important;">
-                    <div class="card-body p-2 flex-grow-1">
-                        <small class="text-uppercase tracking-wider text-primary font-semibold small">Nilai Aset Gudang</small>
-                        <h3 class="fw-bold text-primary mt-2 mb-0">Rp {{ number_format($currentAssetValuation, 0, ',', '.') }}</h3>
-                    </div>
-                    <div class="card-footer bg-transparent border-0 pt-0 px-2">
-                        <small class="text-primary text-xs fw-medium">Uang modal mengendap di stok</small>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="mb-5">
-        <div class="d-flex align-items-center mb-3">
             <div class="bg-primary opacity-10 rounded-circle me-2" style="width: 8px; height: 8px;"></div>
             <h5 class="fw-bold text-uppercase tracking-wider text-secondary small mb-0">Operasional Utama</h5>
         </div>
