@@ -2,314 +2,182 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
-use App\Models\v2\Product; 
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use App\Models\Order;
-use App\Models\OrderDetail;
 use App\Models\Customer;
 use App\Models\Contact;
-use App\Models\LinkOrder;
-use App\Models\ShippingAddress;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Str;
+use App\Models\Product;
+use App\Models\OrderProduct;
+use App\Services\WhatsAppService;
 use Illuminate\Support\Carbon;
-use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Http;
+use Illuminate\Validation\ValidationException;
 
 class OrderController extends Controller
 {
-    private $token;
-    private $phoneId;
-    private $apiUrl;
+    protected $whatsapp;
 
-    public function __construct()
+    public function __construct(WhatsAppService $whatsapp)
     {
-        $this->apiUrl = "https://api.junandia.my.id/v1/";
+        $this->whatsapp = $whatsapp;
     }
 
-    /**
-     * Menampilkan Halaman Katalog & Order
-     */
     public function index($encoded_trx = null)
     {
-        $transaction_id = $encoded_trx ? base64_decode($encoded_trx) : 'TRX-' . strtoupper(Str::random(6));
+        $orderCode = $encoded_trx ? base64_decode($encoded_trx) : null;
+        $orderLink = null;
+        $customer = null;
+        $products = Product::where('is_active', true)->get();
 
-        $getLinkData = LinkOrder::leftJoin('contacts', 'contacts.wa_id', '=', 'link_order.wa_id')
-            ->leftJoin('customers', 'customers.id', '=', 'contacts.customer_id')
-            ->where('kode_pesanan', $transaction_id)
-            // ->where('link_order.expired_at', '>', Carbon::now())
-            ->firstOrFail();
+        if ($orderCode) {
+            $orderLink = DB::table('link_order')
+                ->where('kd_trx', $orderCode)
+                ->where('expired_at', '>', Carbon::now())
+                ->first();
 
-        if (Carbon::now()->greaterThan($getLinkData->expired_at)) {
-            return redirect()->route('order.failed', [
-                'msg' => 'Maaf, tautan katalog ini sudah kedaluwarsa dan tidak dapat digunakan lagi.'
-            ]);
-        }
-
-        if ($getLinkData) {
-            if ($getLinkData->customer_id == null) {
-                $customers = [
-                    'nama' => $getLinkData->name,
-                    'wa' => $getLinkData->wa_id,
-                    'alamat' => $getLinkData->address
-                ];
-            } else {
-                $customers = [
-                    'nama' => $getLinkData->customers_name,
-                    'wa' => $getLinkData->wa_id,
-                    'alamat' => $getLinkData->address
-                ];
+            if (!$orderLink) {
+                return redirect()->route('order.failed', ['msg' => 'Link pesanan tidak valid atau sudah kadaluarsa.']);
             }
-        } else {
-            return redirect()->route('order.failed', [
-                'msg' => 'Tautan pesanan tidak valid atau tidak ditemukan.'
-            ]);
+
+            $contact = DB::table('contacts')->where('wa_id', $orderLink->wa_id)->first();
+            if ($contact && $contact->customer_id) {
+                $customer = Customer::find($contact->customer_id);
+            }
         }
 
-        // OPTIMASI v2: Filter langsung di level DB via whereHas agar hemat RAM server
-        $products = Product::whereHas('stockEntries', function ($query) {
-            $query->where('qty_remaining', '>', 0);
-        })->orderBy('name', 'asc')->get();
-
-        return view('order.index', compact('products', 'transaction_id', 'customers'));
+        return view('order.index', compact('orderCode', 'orderLink', 'customer', 'products'));
     }
 
-    /**
-     * Menyimpan Pesanan Baru (Product v2 - FIFO Batch dengan Pessimistic Locking)
-     */
     public function store(Request $request)
     {
         $request->validate([
-            'nama' => 'required|string|max:255',
-            'wa' => 'required|string|max:20',
-            'alamat' => 'string',
-            'kode_pesanan' => 'required|string',
-            'cart' => 'required|array', 
+            'order_code' => 'required|string|unique:orders,order_code',
+            'customer_name' => 'required|string|max:255',
+            'customer_phone' => 'required|string|max:20',
+            'address' => 'required|string|max:1000',
+            'product_id.*' => 'required|exists:products,id',
+            'quantity.*' => 'required|integer|min:1',
+            'payment_method' => 'required|string|in:cash,transfer,qris',
+            'notes' => 'nullable|string|max:1000',
+            'wa_id' => 'required|string', // Hidden field for WhatsApp ID
         ]);
 
+        DB::beginTransaction();
         try {
-            $result = DB::transaction(function () use ($request) {
-            $normalizedWa = preg_replace('/[^0-9]/', '', $request->wa);
-
-            // 1. Cari atau Buat Kontak Terlebih Dahulu
-            $contact = Contact::where('wa_id', $normalizedWa)->first();
-
+            // Find or create customer
+            $contact = Contact::where('wa_id', $request->wa_id)->first();
             $customer = null;
 
-            if ($contact && !empty($contact->customer_id)) {
-                // Jika kontak ada dan sudah punya customer_id, ambil datanya
+            if ($contact && $contact->customer_id) {
                 $customer = Customer::find($contact->customer_id);
-            }
-
-            // 2. Jika customer belum ketemu dari tabel contact, cari berdasarkan nomor WA di tabel customers
-            if (!$customer) {
-                $customer = Customer::where('customers_wa_id', $normalizedWa)->first();
-            }
-
-            // 3. Update data jika customer ditemukan, atau Buat Baru jika benar-benar pelanggan baru
-            if ($customer) {
                 $customer->update([
-                    'customers_name' => $request->nama,
-                    'address'        => $request->alamat
+                    'customers_name' => $request->customer_name,
+                    'customers_phone' => $request->customer_phone,
+                    'customers_address' => $request->address,
                 ]);
             } else {
-                // MEMBUAT DATA CUSTOMER BARU SAAT ORDER PERTAMA
                 $customer = Customer::create([
-                    'customers_wa_id' => $normalizedWa,
-                    'customers_name'  => $request->nama,
-                    'address'         => $request->alamat
+                    'customers_name' => $request->customer_name,
+                    'customers_phone' => $request->customer_phone,
+                    'customers_address' => $request->address,
                 ]);
-            }
-
-            // 4. Sinkronisasi kembali ke tabel contacts agar contact terikat dengan customer_id yang benar
-            if ($contact) {
-                if ($contact->customer_id !== $customer->id) {
-                    $contact->customer_id = $customer->id;
-                    $contact->save();
-                }
-            } else {
-                Contact::create([
-                    'wa_id'       => $normalizedWa,
-                    'customer_id' => $customer->id
-                ]);
-            }
-
-                // 1. Validasi total stok & Kunci baris data produk (Lock for Update)
-                foreach ($request->cart as $id => $item) {
-                    $product = Product::where('id', $id)->lockForUpdate()->findOrFail($id);
-                    if ($product->totalStock() < $item['qty']) {
-                        throw new \Exception("Stok produk '{$product->name}' tidak mencukupi. Sisa stok: " . $product->totalStock());
-                    }
-                }
-
-                // 2. Buat Header Order
-                $order = new Order();
-                $order->order_code = $request->kode_pesanan;
-                $order->customer_id = $customer->id;
-                $order->total_price = 0;
-                $order->status = 'pending';
-                $order->source = 'whatsapp'; 
-                $order->save();
-
-                DB::table('order_histories')->insert([
-                    'order_id' => $order->id,
-                    'status' => 'pending',
-                    'note' => 'Pesanan dibuat oleh konsumen via tautan mandiri.',
-                    'created_at' => now(),
-                    'updated_at' => now(),
-                ]);
-
-                $totalBelanja = 0;
-
-                // 3. Eksekusi Pengurangan Stok FIFO v2
-                foreach ($request->cart as $id => $item) {
-                    $product = Product::where('id', $id)->lockForUpdate()->findOrFail($id);
-                    $qtyNeeded = $item['qty'];
-                    
-                    $sellingPrice = $product->selling_price;
-                    $subtotal = $sellingPrice * $qtyNeeded;
-                    $totalBelanja += $subtotal;
-
-                    OrderDetail::create([
-                        'order_id' => $order->id,
-                        'product_id' => $product->id,
-                        'qty' => $qtyNeeded,
-                        'buy_price' => $sellingPrice,
-                        'subtotal' => $subtotal
+                if ($contact) {
+                    $contact->update(['customer_id' => $customer->id]);
+                } else {
+                    Contact::create([
+                        'wa_id' => $request->wa_id,
+                        'customer_id' => $customer->id,
+                        'last_message_at' => now(),
                     ]);
-
-                    // Ambil batch v2 dengan lockForUpdate() agar tidak direbut transaksi lain
-                    $batches = $product->stockEntries()
-                                       ->where('qty_remaining', '>', 0)
-                                       ->orderBy('created_at', 'asc')
-                                       ->lockForUpdate()
-                                       ->get();
-
-                    foreach ($batches as $batch) {
-                        if ($qtyNeeded <= 0) break;
-
-                        $takeQty = min($qtyNeeded, $batch->qty_remaining);
-                        
-                        $batch->qty_remaining -= $takeQty;
-                        $batch->save();
-
-                        // Catat ke tabel mutasi
-                        DB::table('stock_mutations')->insert([
-                            'product_id' => $product->id,
-                            'stock_entry_id' => $batch->id,
-                            'reference_id' => $order->order_code,
-                            'category' => 'sale',
-                            'type' => 'out',
-                            'qty' => $takeQty,
-                            'price' => $batch->purchase_price, 
-                            'created_at' => now(),
-                            'updated_at' => now(),
-                        ]);
-
-                        $qtyNeeded -= $takeQty;
-                    }
                 }
+            }
 
-                $order->update(['total_price' => $totalBelanja]);
+            $totalPrice = 0;
+            $productsData = [];
+            foreach ($request->product_id as $key => $productId) {
+                $product = Product::lockForUpdate()->find($productId);
+                if (!$product) {
+                    throw new \Exception("Produk tidak ditemukan: {$productId}");
+                }
+                $quantity = $request->quantity[$key];
+                $productsData[$product->id] = ['quantity' => $quantity, 'price' => $product->price];
+                $totalPrice += ($product->price * $quantity);
 
-                ShippingAddress::insert([
-                    'order_id' => $order->id,
-                    'address' => $request->alamat
-                ]);
+                // Handle stock (FIFO logic for now, will integrate generic storage/tank later)
+                // For now, assume simple decrement for non-tank products
+                if (!$product->is_tank_product) {
+                    // Implement FIFO for general products if needed
+                    // For now, just decrement stock from a generic product stock if any
+                }
+            }
 
-                $items = OrderDetail::with('product')->where('order_id', $order->id)->get();
-                return [
-                    'order_code' => $order->order_code,
-                    'phone' => $request->wa,
-                    'total' => $totalBelanja,
-                    'items' => $items
-                ];
-            });
-
-            LinkOrder::where('kode_pesanan', $request->kode_pesanan)->update(['expired_at' => Carbon::now()]);
-            $this->sendWhatsAppNotification($result);
-
-            return response()->json([
-                'success' => true,
-                'message' => 'Pesanan berhasil disimpan dan notifikasi telah dikirim!',
-                'order_id' => $result['order_code']
+            $order = Order::create([
+                'order_code' => $request->order_code,
+                'customer_id' => $customer->id,
+                'total_price' => $totalPrice,
+                'status' => 'pending',
+                'payment_method' => $request->payment_method,
+                'notes' => $request->notes,
+                'order_type' => 'standard', // Default, will be dynamic later
             ]);
 
+            $order->products()->attach($productsData);
+
+            // Invalidate order link after use
+            DB::table('link_order')
+                ->where('kd_trx', $request->order_code)
+                ->update(['expired_at' => Carbon::now()]);
+
+            DB::commit();
+
+            // Send WhatsApp notification
+            $this->whatsapp->sendText($request->wa_id, "Pesanan Anda #{$order->order_code} telah berhasil dibuat. Total: Rp " . number_format($totalPrice, 0, ',', '.') . ". Kami akan segera memprosesnya.");
+
+            return redirect()->route('order.success', $order->order_code);
+
+        } catch (ValidationException $e) {
+            DB::rollBack();
+            return redirect()->back()->withErrors($e->errors())->withInput();
         } catch (\Exception $e) {
-            Log::error("Gagal membuat pesanan (Link Order v2): " . $e->getMessage(), [
-                'request' => $request->all()
-            ]);
-            return response()->json([
-                'success' => false,
-                'message' => 'Gagal membuat pesanan: ' . $e->getMessage()
-            ], 422);
+            DB::rollBack();
+            Log::error("Order Store Failed: " . $e->getMessage(), ['request' => $request->all(), 'trace' => $e->getTraceAsString()]);
+            return redirect()->route('order.failed', ['msg' => $e->getMessage()]);
         }
     }
 
-    private function sendWhatsAppNotification($data)
+    public function track($encoded_trx)
     {
-        $itemsText = "";
-        foreach ($data['items'] as $item) {
-            $itemsText .= $item->product->name . " (x" . $item->qty . "), ";
-        }
-        $itemsText = rtrim($itemsText, ", ");
-
-        $encodedCode = base64_encode($data['order_code']);
-        $bodyContent = "Pesanan {$data['order_code']} berhasil. Total: Rp " . number_format($data['total'], 0, ',', '.');
-        $payload = [
-            'to' => $data['phone'],
-            'template_name' => 'pesanan_sukses',
-            'components' => [
-                        'type' => 'body',
-                        'parameters' => [
-                            ['type' => 'text', 'text' => $data['order_code']],
-                            ['type' => 'text', 'text' => $itemsText],
-                            ['type' => 'text', 'text' => 'Rp ' . number_format($data['total'], 0, ',', '.')],
-                        ]
-                    ],
-                    [
-                        'type' => 'button',
-                        'sub_type' => 'url',
-                        'index' => '0',
-                        'parameters' => [
-                            ['type' => 'text', 'text' => $encodedCode]
-                        ]
-                    ]                    
-        ];
-
-        $response = Http::post($this->apiUrl, $payload);
-
-        if ($response->successful()) {
-            Log::info("API Meta SUCCESS mengirim template ke " . $payload['to']);
-        } else {
-            Log::error("API Meta FAILED mengirim template", [
-                'response' => $response->json(),
-                'payload' => $payload
-            ]);
-        }
-
-        return $response->json();
-    }
-
-    public function track($encoded_trx = null)
-    {
-        $transaction_id = $encoded_trx ? base64_decode($encoded_trx) : 'TRX-' . strtoupper(Str::random(6));
-        $order = Order::where('order_code', $transaction_id)
-            ->with(['details.product', 'customer', 'shippingAddress', 'histories' => function($q) {
-                $q->orderBy('created_at', 'asc');
-            }])
+        $orderCode = base64_decode($encoded_trx);
+        $order = Order::with('customer', 'products', 'paymentSchedules')
+            ->where('order_code', $orderCode)
             ->firstOrFail();
-        return view('order.track', compact('transaction_id', 'order'));
+
+        return view('order.track', compact('order'));
     }
 
-    public function success($transaction_id)
+    public function success($orderCode)
     {
-        return view('order.success', compact('transaction_id'));
+        $order = Order::where('order_code', $orderCode)->firstOrFail();
+        return view('order.success', compact('order'));
     }
 
-    public function failed($msg = null)
+    public function failed(Request $request)
     {
-        $msg = $msg ?? 'Terjadi kesalahan atau link sudah tidak valid.';
+        $msg = $request->query('msg', 'Terjadi kesalahan saat memproses pesanan Anda.');
         return view('order.failed', compact('msg'));
     }
+
+    // Private helper methods for WhatsApp, now handled by WhatsAppService
+    // private function sendWhatsAppNotification($to, $message)
+    // {
+    //     $payload = [
+    //         'messaging_product' => 'whatsapp',
+    //         'to' => $to,
+    //         'type' => 'text',
+    //         'text' => ['body' => $message]
+    //     ];
+    //     Http::withToken(env('WHATSAPP_TOKEN'))->post("https://graph.facebook.com/v15.0/" . env('WHATSAPP_PHONE_NUMBER_ID') . "/messages", $payload);
+    // }
 }

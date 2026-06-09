@@ -5,15 +5,17 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 
-class TermOfPayment extends Model
+class Role extends Model
 {
     use HasFactory;
-    use \App\Traits\BelongsToTenant;
 
     protected $fillable = [
-        'tenant_id',
         'name',
-        'description',
-        'days_due',
+        'permissions'
     ];
+
+    public function users()
+    {
+        return $this->belongsToMany(User::class);
+    }
 }

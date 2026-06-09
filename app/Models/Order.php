@@ -10,9 +10,13 @@ class Order extends Model
 {
     use HasFactory;
     use SoftDeletes;
+    use \App\Traits\BelongsToTenant;
 
-    protected $table = 'orders';
-    protected $fillable = ['order_code','customer_id','kurir_id','total_price','status','source','notes','payment_method'];
+    protected $fillable = [
+        'tenant_id',
+        'payment_term_id',
+        'order_code','customer_id','kurir_id','total_price','status','source','notes','payment_method','order_type','tank_id','volume'
+    ];
 
     /**
      * Relasi ke Customer (Satu Order dimiliki oleh satu Customer)
@@ -55,5 +59,23 @@ class Order extends Model
     public function termOfPayment()
     {
         return $this->hasOne(TermOfPayment::class, 'order_id');
+    }
+
+    public function paymentSchedules()
+    {
+        return $this->hasMany(OrderPaymentSchedule::class, 'order_id');
+    }
+
+    // Order dengan payment schedule jatuh tempo
+    public function overdueSchedules()
+    {
+        return $this->paymentSchedules()->where('status', 'pending')->where('due_date', '<', now());
+    }
+
+    public function scopeHasOverdue($query)
+    {
+        return $query->whereHas('paymentSchedules', function($q) {
+            $q->where('status', 'pending')->where('due_date', '<', now());
+        });
     }
 }

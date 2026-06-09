@@ -17,3 +17,10 @@ use Illuminate\Support\Facades\Route;
 Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
     return $request->user();
 });
+
+// Term of Payment
+Route::apiResource('term-of-payments', 'App\\Http\\Controllers\\TermOfPaymentController');
+
+// Tank Management
+Route::apiResource('tanks', 'App\\Http\\Controllers\\TankController');
+Route::post('tanks/{tank}/update-volume', 'App\\Http\\Controllers\\TankController@updateVolume');

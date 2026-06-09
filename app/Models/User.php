@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
+use App\Traits\BelongsToTenant;
 
 class User extends Authenticatable
 {
@@ -21,6 +22,7 @@ class User extends Authenticatable
         'name',
         'email',
         'password',
+        'tenant_id',
     ];
 
     /**
@@ -32,6 +34,28 @@ class User extends Authenticatable
         'password',
         'remember_token',
     ];
+
+    // Added for SaaS
+    protected static function boot()
+    {
+        parent::boot();
+        static::addGlobalScope('tenant', function (\Illuminate\Database\Eloquent\Builder $builder) {
+            if (auth()->check()) {
+                $builder->where('tenant_id', auth()->user()->tenant_id);
+            }
+        });
+
+        static::creating(function ($user) {
+            if (auth()->check()) {
+                $user->tenant_id = auth()->user()->tenant_id;
+            }
+        });
+    }
+
+    public function tenant()
+    {
+        return $this->belongsTo(Tenant::class);
+    }
 
     /**
      * The attributes that should be cast.

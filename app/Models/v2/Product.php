@@ -11,9 +11,13 @@ class Product extends Model
     use SoftDeletes; // 2. Gunakan trait
 
     protected $fillable = [
-        'name',
-        'selling_price',
-    ];
+            'name',
+            'selling_price',
+            'category',
+            'is_consumable',
+            'image',
+            'unit'
+        ];
 
     /**
      * Relasi ke Batch Stok Masuk

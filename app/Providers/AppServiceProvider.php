@@ -19,6 +19,12 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        //
+        // Bind current tenant instance by request host if available
+        try {
+            $host = request()->getHost();
+            \App\Models\Tenant::where('domain', $host)->first();
+        } catch (\Exception $e) {
+            // ignore when running in console
+        }
     }
 }

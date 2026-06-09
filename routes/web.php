@@ -4,7 +4,8 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\OrderController;
 use App\Http\Controllers\Admin\OrderController as AdminOrderController;
 use App\Http\Controllers\Admin\CustomerController;
-use App\Http\Controllers\Admin\ChatController;
+use App\Http\Controllers\Admin\TermOfPaymentController;
+use App\Http\Controllers\Admin\TankController;
 use App\Http\Controllers\Admin\ProductController;
 use App\Http\Controllers\Admin\v2\ProductController as ProductControllerV2;
 use App\Http\Controllers\Admin\KurirController;
@@ -12,6 +13,7 @@ use App\Http\Controllers\Admin\KasirController;
 use App\Http\Controllers\Admin\StockManagementController;
 use App\Http\Controllers\Admin\ReportController;
 use App\Http\Controllers\Admin\DashboardController;
+use App\Http\Controllers\Admin\ChatController;
 use App\Http\Controllers\ProfileController;
 
 /*
@@ -103,24 +105,38 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'verified'])->group(
         Route::get('/active-batches/{product_id}', 'getActiveBatches')->name('active_batches');
     });
 
+    // Term of Payment Management
+    Route::resource('terms', TermOfPaymentController::class)->names('terms');
+
+    // Tank Management
+    Route::controller(TankController::class)->prefix('tanks')->name('tanks.')->group(function () {
+        Route::get('/', 'index')->name('index');
+        Route::get('/create', 'create')->name('create');
+        Route::post('/', 'store')->name('store');
+        Route::get('/{tank}', 'show')->name('show');
+        Route::get('/{tank}/edit', 'edit')->name('edit');
+        Route::put('/{tank}', 'update')->name('update');
+        Route::delete('/{tank}', 'destroy')->name('destroy');
+        Route::post('/{tank}/log', 'recordLog')->name('recordLog');
+        Route::post('/{tank}/refill', 'storeRefill')->name('storeRefill');
+        Route::get('/low-stock-check', 'lowStockCheck')->name('lowStockCheck');
+    });
+
     Route::controller(ReportController::class)->prefix('reports')->name('reports.')->group(function () {
-        Route::prefix('profit')->name('profit.')->group(function () {
             Route::get('/', 'profitReport')->name('index');
             Route::get('/export/excel', 'exportProfitExcel')->name('excel');
             Route::get('/export/pdf', 'exportProfitPdf')->name('pdf');
         });
-        Route::get('/inventory-valuation', 'inventoryValuation')->name('inventory_valuation');
+        Route::get('/inventory-valuation', [ReportController::class, 'inventoryValuation'])->name('inventory_valuation');
+
+        // Admin API / Feature V2
+        Route::prefix('v2')->name('v2.')->group(function () {
+            Route::post('products/checkout', [ProductControllerV2::class, 'checkoutOrder'])->name('products.checkout');
+            Route::post('products/cancel/{order_id}', [ProductControllerV2::class, 'cancelOrder'])->name('products.cancel');
+            Route::resource('products', ProductControllerV2::class);
+        });
     });
 
-    // Admin API / Feature V2
-    Route::prefix('v2')->name('v2.')->group(function () {
-        // Custom FIFO Operations (Di atas resource agar tidak bentrok)
-        Route::post('products/checkout', [ProductControllerV2::class, 'checkoutOrder'])->name('products.checkout');
-        Route::post('products/cancel/{order_id}', [ProductControllerV2::class, 'cancelOrder'])->name('products.cancel');
-        
-        Route::resource('products', ProductControllerV2::class);
-    });
-});
 
 Route::middleware('auth')->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
@@ -137,4 +153,5 @@ Route::get('/clear-cache', function() {
 })->name('clear.cache');
 
 Route::get('/stock-check', [DashboardController::class, 'checkLowStock'])->name('stock.check');
+Route::get('/send-overdue-reminders', [DashboardController::class, 'sendOverdueReminders'])->name('overdue.reminders');
 require __DIR__.'/auth.php';

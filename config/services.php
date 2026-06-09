@@ -31,4 +31,8 @@ return [
         'region' => env('AWS_DEFAULT_REGION', 'us-east-1'),
     ],
 
+    'whatsapp' => [
+        'api_base' => env('WHATSAPP_API_BASE', 'https://api.junandia.my.id/v1'),
+    ],
+
 ];

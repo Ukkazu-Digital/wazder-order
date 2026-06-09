@@ -10,6 +10,8 @@ use App\Models\Customer;
 use App\Models\v2\Product; // Menggunakan model Product dari sub-namespace v2
 use App\Models\Kurir;
 use App\Models\Contact;
+use App\Models\PaymentTerm;
+use App\Models\OrderPaymentSchedule;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Support\Carbon;
@@ -165,26 +167,30 @@ class KasirController extends Controller
                 }
             }
 
-            //insert ke term of payment jika status TOP
+            // Insert ke order_payment_schedules jika status TOP
             if ($request->status === 'TOP') {
-                $top = DB::table('term_of_payments')->insert([
+                $paymentTerm = PaymentTerm::findOrFail($request->payment_term_id);
+                $dueDate = now()->addDays($paymentTerm->days_due);
+
+                OrderPaymentSchedule::create([
                     'order_id' => $order->id,
-                    'payment_due_date' => Carbon::parse('2026-06-30')->format('Y-m-d 23:59:59'), // Contoh: Jatuh tempo 7 hari setelah order
+                    'due_date' => $dueDate->toDateString(),
                     'amount_due' => $totalPrice,
                     'status' => 'unpaid',
-                    'created_at' => now(),
-                    'updated_at' => now(),
                 ]);
+
+                // Update order dengan payment_term_id
+                $order->update(['payment_term_id' => $paymentTerm->id]);
 
                 DB::table('order_histories')->insert([
                     'order_id' => $order->id,
                     'status' => 'TOP',
-                    'note' => 'Pesanan dibuat dengan status TOP, jatuh tempo pada ' . $request->due_date,
+                    'note' => 'Pesanan dibuat dengan status TOP, jatuh tempo pada ' . $dueDate->toDateString(),
                     'created_at' => now(),
                     'updated_at' => now(),
                 ]);
-            }else{
-                // 5. Catat riwayat order status
+            } else {
+                // Catat riwayat order status untuk non-TOP
                 DB::table('order_histories')->insert([
                     'order_id' => $order->id,
                     'status' => $request->status,

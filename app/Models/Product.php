@@ -10,9 +10,18 @@ class Product extends Model
 {
     use HasFactory;
     use SoftDeletes;
+    use \App\Traits\BelongsToTenant;
 
-    protected $table = 'products';
-    protected $fillable = ['name','price','stock','image','is_active'];
+    protected $fillable = [
+        'tenant_id',
+        'name',
+        'price',
+        'stock',
+        'image',
+        'is_active',
+        'is_consumable',
+        'category',
+    ];
 
     public function orderDetails()
     {

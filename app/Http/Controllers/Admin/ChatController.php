@@ -6,20 +6,17 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use App\Models\Message;
-use Illuminate\Support\Facades\Http;
+use App\Services\WhatsAppService;
 use Illuminate\Support\Facades\Log;
 
 class ChatController extends Controller
 {
-    private $token;
-    private $phoneId;
-    private $apiUrl;
+    protected $whatsapp;
 
-    public function __construct()
+    public function __construct(WhatsAppService $whatsapp)
     {
-        $this->token = env('WHATSAPP_TOKEN');
-        $this->phoneId = env('WHATSAPP_PHONE_NUMBER_ID');
-        $this->apiUrl = "https://graph.facebook.com/v25.0/{$this->phoneId}/messages";
+        $this->whatsapp = $whatsapp;
+        $this->middleware(['auth', 'verified']);
     }
 
     private function getContacts()
@@ -35,7 +32,7 @@ class ChatController extends Controller
             )
             ->leftJoin('contacts', 'messages.contact_wa_id', '=', 'contacts.wa_id')
             ->leftJoin('customers', 'contacts.customer_id', '=', 'customers.id')
-            ->groupBy('messages.contact_wa_id', 'contacts.customer_id', 'customers.customers_name')
+            ->groupBy('messages.contact_wa_id', 'contacts.customer_id', 'customers.customers_name', 'contacts.last_status')
             ->orderByDesc('last_timestamp')
             ->get();
     }
@@ -83,16 +80,23 @@ class ChatController extends Controller
             'body' => 'required|string|max:2000',
         ]);
 
-        $payload = [
-            'messaging_product' => 'whatsapp',
-            'to' => $contact_wa_id,
-            'type' => 'text',
-            'text' => ['body' => $request->body]
-        ];
-        Log::info("Mengirim Pesan Teks ke $contact_wa_id");
-        $this->executeSendMessage($payload, 'text', $request->body);
+        $result = $this->whatsapp->sendText($contact_wa_id, $request->body);
 
-        return redirect()->route('admin.chats.show', $contact_wa_id)->with('success', 'Pesan berhasil dikirim.');
+        if ($result['status'] === 'success') {
+             Message::create([
+                'contact_wa_id' => $contact_wa_id,
+                'direction' => 'outbound',
+                'type' => 'text',
+                'body' => $request->body,
+                'timestamp_unix' => now()->timestamp,
+                'created_at' => now(),
+                'updated_at' => now(),
+                'status' => 'sent',
+            ]);
+            return redirect()->route('admin.chats.show', $contact_wa_id)->with('success', 'Pesan berhasil dikirim.');
+        }
+
+        return redirect()->route('admin.chats.show', $contact_wa_id)->with('error', 'Gagal mengirim pesan: ' . ($result['message'] ?? 'Unknown Error'));
     }
 
     public function refresh($contact_wa_id)
@@ -114,34 +118,6 @@ class ChatController extends Controller
         ]);
     }
 
-    private function executeSendMessage($payload, $type, $bodyContent)
-    {
-        $response = Http::withToken($this->token)->post($this->apiUrl, $payload);
-
-        if ($response->successful()) {
-            Log::info("API Meta SUCCESS mengirim $type ke " . $payload['to']);
-            
-            // Simpan outbound ke DB
-             Message::create([
-                'contact_wa_id' => $payload['to'],
-                'direction' => 'outbound',
-                'type' => 'text',
-                'body' => $bodyContent,
-                'timestamp_unix' => now()->timestamp,
-                'created_at' => now(),
-                'updated_at' => now(),
-                'status' => 'sent',
-            ]);
-        } else {
-            Log::error("API Meta FAILED mengirim $type", [
-                'response' => $response->json(),
-                'payload' => $payload
-            ]);
-        }
-
-        return $response->json();
-    }
-
     public function completeCase($contact_wa_id)
     {
         try {
@@ -149,18 +125,22 @@ class ChatController extends Controller
                 ->where('wa_id', $contact_wa_id)
                 ->update(['last_status' => 'awaiting_response_bot']);
 
-            // Kirim notifikasi ke customer
             $notificationMessage = "Terima kasih telah menghubungi kami! Chat dengan CS kami telah selesai. Sistem kami akan kembali membantu Anda jika diperlukan.";
             
-            $payload = [
-                'messaging_product' => 'whatsapp',
-                'to' => $contact_wa_id,
-                'type' => 'text',
-                'text' => ['body' => $notificationMessage]
-            ];
-            
-            Log::info("Mengirim notifikasi case selesai ke $contact_wa_id");
-            $this->executeSendMessage($payload, 'text', $notificationMessage);
+            $result = $this->whatsapp->sendText($contact_wa_id, $notificationMessage);
+
+            if ($result['status'] === 'success') {
+                Message::create([
+                    'contact_wa_id' => $contact_wa_id,
+                    'direction' => 'outbound',
+                    'type' => 'text',
+                    'body' => $notificationMessage,
+                    'timestamp_unix' => now()->timestamp,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                    'status' => 'sent',
+                ]);
+            }
 
             return redirect()->route('admin.chats.show', $contact_wa_id)->with('success', 'Case selesai. Notifikasi telah dikirim ke customer.');
         } catch (\Exception $e) {

@@ -5,15 +5,15 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 
-class TermOfPayment extends Model
+class Tenant extends Model
 {
     use HasFactory;
-    use \App\Traits\BelongsToTenant;
 
     protected $fillable = [
-        'tenant_id',
         'name',
-        'description',
-        'days_due',
+        'domain',
+        'subdomain',
+        'database_name',
+        'is_active',
     ];
 }

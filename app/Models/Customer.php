@@ -10,9 +10,10 @@ class Customer extends Model
 {
     use HasFactory;
     use SoftDeletes;
+    use \App\Traits\BelongsToTenant;
 
     protected $table = 'customers';
-    protected $fillable = ['customers_name','customers_wa_id','address','latitude','longtitude','updated_by'];
+    protected $fillable = ['customers_name','customers_wa_id','address','latitude','longtitude','updated_by','tenant_id'];
 
     public function orders()
     {

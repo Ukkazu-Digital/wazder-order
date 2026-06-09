@@ -25,6 +25,32 @@
     }
 </style>
 
+<style>
+    .category-badge {
+        font-size: 11px;
+        font-weight: 700;
+        padding: 3px 7px;
+        border-radius: 8px;
+        color: #fff;
+    }
+    .category-badge.air_minum {
+        background-color: #0d6efd;
+    }
+    .category-badge.gas_lpg {
+        background-color: #ffc107;
+        color: #212529;
+    }
+    .category-badge.galon {
+        background-color: #20c997;
+    }
+    .category-badge.tissue_aksesoris {
+        background-color: #6f42c1;
+    }
+    .category-badge.lainnya {
+        background-color: #6c757d;
+    }
+</style>
+
 <div class="container-fluid px-4 py-3 pos-container">
     <!-- Header POS -->
     <div class="d-flex justify-content-between align-items-center mb-3">
@@ -64,6 +90,14 @@
                 </div>
 
                 <!-- Grid Konten Berkasur Gambar -->
+                <!-- Category Tabs -->
+                <ul class="nav nav-tabs mb-3" id="categoryTabs">
+                    <li class="nav-item"><a data-category="all" class="nav-link active" href="#">Semua</a></li>
+                    <li class="nav-item"><a data-category="air_minum" class="nav-link" href="#">Air Minum</a></li>
+                    <li class="nav-item"><a data-category="gas_lpg" class="nav-link" href="#">Gas LPG</a></li>
+                    <li class="nav-item"><a data-category="galon" class="nav-link" href="#">Galon</a></li>
+                    <li class="nav-item"><a data-category="tissue_aksesoris" class="nav-link" href="#">Tissue & Aksesoris</a></li>
+                </ul>
                 <div class="pos-scroll-area hide-scrollbar pe-1">
                     <div id="productGrid" class="row row-cols-2 row-cols-sm-3 row-cols-xl-4 g-3">
                         @foreach($products as $product)
@@ -72,7 +106,7 @@
                             $currentStock = $product->totalStock();
                             $sellingPrice = $product->selling_price;
                         @endphp
-                        <div class="col product-item" data-name="{{ strtolower($product->name) }}">
+                        <div class="col product-item" data-name="{{ strtolower($product->name) }}" data-category="{{ $product->category }}">
                             <div class="card h-100 border-0 shadow-sm rounded-4 overflow-hidden product-card position-relative p-2 bg-white {{ $currentStock <= 0 ? 'opacity-50' : '' }}">
                                 
                                 <!-- Thumbnail Produk -->
@@ -93,11 +127,22 @@
                                     @endif
                                 </div>
 
+
                                 <!-- Metadata info produk -->
                                 <div class="card-body p-1 d-flex flex-column h-100">
-                                    <h6 class="card-title fw-bold text-dark text-truncate mb-1" title="{{ $product->name }}">{{ $product->name }}</h6>
+                                    <h6 class="card-title fw-bold text-dark text-truncate mb-1" title="{{ $product->name }}">
+                                        {{ $product->name }}
+                                        <span class="badge ms-1 category-badge {{ $product->category }}">
+                                            @switch($product->category)
+                                                @case('air_minum') Air Minum @break
+                                                @case('gas_lpg') Gas LPG @break
+                                                @case('galon') Galon @break
+                                                @case('tissue_aksesoris') Tissue & Aksesoris @break
+                                                @default Lainnya
+                                            @endswitch
+                                        </span>
+                                    </h6>
                                     <p class="text-primary fw-bold mb-1 small">Rp {{ number_format($sellingPrice, 0, ',', '.') }}</p>
-                                    
                                     <p id="stock-info-{{ $product->id }}" class="mb-2" style="font-size: 11px; font-weight: 600; color: {{ $currentStock <= 5 ? '#f0ad4e' : '#a0a0a0' }}">
                                         {{ $currentStock <= 0 ? 'Stok Habis' : ($currentStock <= 5 ? "Sisa $currentStock stok!" : 'Stok Tersedia') }}
                                     </p>
@@ -280,15 +325,31 @@
     // 1. Filter Fungsi Pencarian Realtime
     function filterProducts() {
         const input = document.getElementById('searchInput').value.toLowerCase();
+        const selectedCat = document.querySelector('#categoryTabs .nav-link.active').getAttribute('data-category');
         document.querySelectorAll('.product-item').forEach(item => {
             const name = item.getAttribute('data-name');
-            if (name.includes(input)) {
+            const cat = item.getAttribute('data-category');
+            const visibleCat = (selectedCat === 'all' || selectedCat === cat);
+            const visibleName = name.includes(input);
+            if (visibleCat && visibleName) {
                 item.style.setProperty("display", "block", "important");
             } else {
                 item.style.setProperty("display", "none", "important");
             }
         });
     }
+
+    // Category tabs event
+    document.addEventListener('DOMContentLoaded', function() {
+        document.querySelectorAll('#categoryTabs .nav-link').forEach(tab => {
+            tab.addEventListener('click', function(e) {
+                e.preventDefault();
+                document.querySelectorAll('#categoryTabs .nav-link').forEach(t => t.classList.remove('active'));
+                this.classList.add('active');
+                filterProducts();
+            });
+        });
+    });
 
     // 2. Fungsi Manajemen Kuantitas Plus / Minus (Sudah Diperbaiki Keamanannya)
     function updateQty(id, change, name = '', price = 0, maxStock = 0) {
