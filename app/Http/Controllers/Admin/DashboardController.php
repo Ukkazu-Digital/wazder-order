@@ -21,9 +21,8 @@ class DashboardController extends Controller
         $startMonth = Carbon::now()->startOfMonth()->toDateString();
         $endMonth = Carbon::now()->endOfMonth()->toDateString();
 
-        // 1. Amankan SELURUH query agregat berat ke dalam satu block Cache tunggal
-        // Menggunakan key yang unik per tenant/user (jika multi-tenant) atau per menit/jam
-        $dashboardData = Cache::remember('dashboard_analytics_v2_' . $startMonth, 300, function () use ($startMonth, $endMonth) {
+        // Gabungkan seluruh data kalkulasi berat ke dalam satu Cache tunggal selama 10 menit (600 detik)
+        $analytics = Cache::remember('dashboard_analytics_v3_' . $startMonth, 600, function () use ($startMonth, $endMonth) {
             
             $revenue = Order::whereIn('status', ['completed', 'pending'])
                 ->whereBetween('created_at', [$startMonth . ' 00:00:00', $endMonth . ' 23:59:59'])
@@ -46,7 +45,7 @@ class DashboardController extends Controller
                 ->take(5)
                 ->get();
 
-            // Masukkan valuasi aset ke dalam cache karena nilainya tidak perlu realtime per detik
+            // OPTIMASI: Pindahkan valuasi aset ke dalam cache agar tidak dieksekusi terus-menerus
             $assetValuation = StockEntry::where('qty_remaining', '>', 0)
                 ->select(DB::raw('SUM(qty_remaining * purchase_price) as total_asset'))
                 ->value('total_asset') ?? 0;
@@ -59,13 +58,13 @@ class DashboardController extends Controller
             ];
         });
 
-        $thisMonthRevenue = $dashboardData['revenue'];
-        $thisMonthHpp = $dashboardData['hpp'];
+        $thisMonthRevenue = $analytics['revenue'];
+        $thisMonthHpp = $analytics['hpp'];
         $thisMonthProfit = $thisMonthRevenue - $thisMonthHpp;
-        $currentAssetValuation = $dashboardData['assetValuation'];
-        $topProducts = $dashboardData['topProducts'];
+        $currentAssetValuation = $analytics['assetValuation'];
+        $topProducts = $analytics['topProducts'];
 
-        // 2. Query ringan yang wajib real-time (notifikasi / alert dashboard)
+        // Query di bawah ini tetap real-time karena berupa alert/notifikasi penting
         $lowStockTanks = $this->checkLowStockTanks();
         $pendingOrdersCount = $this->checkPendingOrders();
         $overduePaymentReminders = $this->checkOverduePaymentReminders();
@@ -79,12 +78,12 @@ class DashboardController extends Controller
 
     public function checkLowStockTanks()
     {
-        // OPTIMASI: Jika di blade Anda menampilkan nama produk dari tanki tersebut, 
-        // pastikan menambahkan eager loading ->with('product') di sini agar tidak memicu N+1 Query!
-        return Tank::with('product') // Sesuaikan nama relasi produk di model Tank Anda
+        // OPTIMASI: Tambahkan eager loading 'product' (sesuaikan nama relasi di model Tank Anda)
+        // agar ketika nama produk dipanggil di Blade via perulangan tidak menyebabkan N+1 query.
+        return Tank::with('product') 
                     ->whereRaw('current_volume / capacity < 0.3')
                     ->where('status', 'active')
-                    ->select('id', 'name', 'product_id', 'current_volume', 'capacity') // Ambil Fk 'product_id'
+                    ->select('id', 'name', 'product_id', 'current_volume', 'capacity')
                     ->get();
     }
 
@@ -95,7 +94,9 @@ class DashboardController extends Controller
 
     private function checkOverduePaymentReminders()
     {
-        return Order::join('term_of_payments', 'orders.id', '=', 'term_of_payments.order_id')
+        // OPTIMASI: Hindari penggunaan join model mentah jika tujuannya hanya untuk menghitung total count.
+        return DB::table('orders')
+                    ->join('term_of_payments', 'orders.id', '=', 'term_of_payments.order_id')
                     ->where('orders.status', 'pending')
                     ->where('term_of_payments.payment_due_date', '<=', Carbon::now())
                     ->count();
@@ -105,21 +106,21 @@ class DashboardController extends Controller
     {
         $sent = 0;
         
-        // chunk(50) sudah sangat bagus untuk mencegah penumpukan data model di RAM
         OrderPaymentSchedule::where('status', 'pending')
             ->where('due_date', '<=', Carbon::now())
-            ->with(['order.customer.contact']) // Sempurnakan eager loading ke sub-relasi terdalam
+            ->with(['order.customer.contact']) // Sempurnakan eager loading terdalam
             ->chunk(50, function ($schedules) use (&$sent) {
                 $wa = new WhatsAppService();
                 foreach ($schedules as $schedule) {
                     $order = $schedule->order;
-                    // Amankan pengecekan nomor WA agar tidak error null pointer
-                    $waNumber = $order->customer->wa_number ?? $order->customer->contact->wa_id ?? null;
-                    
-                    if ($order && $order->customer && $waNumber) {
-                        $wa->sendText($waNumber, "Pengingat Pembayaran...");
-                        $schedule->update(['status' => 'overdue']);
-                        $sent++;
+                    if ($order && $order->customer) {
+                        $waNumber = $order->customer->wa_number ?? $order->customer->contact->wa_id ?? null;
+                        
+                        if ($waNumber) {
+                            $wa->sendText($waNumber, "Pengingat Pembayaran...");
+                            $schedule->update(['status' => 'overdue']);
+                            $sent++;
+                        }
                     }
                 }
             });
