@@ -13,109 +13,102 @@ use App\Services\WhatsAppService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Cache;
 
 class DashboardController extends Controller
 {
-    /**
-     * Tampilan Utama Halaman Dashboard Admin
-     */
     public function index()
     {
         $startMonth = Carbon::now()->startOfMonth()->toDateString();
         $endMonth = Carbon::now()->endOfMonth()->toDateString();
 
-        $thisMonthRevenue = Order::whereIn('status', ['completed', 'pending'])
-            ->whereBetween('created_at', [$startMonth . ' 00:00:00', $endMonth . ' 23:59:59'])
-            ->sum('total_price') ?? 0;
+        // Menggunakan Cache untuk data yang tidak perlu real-time setiap detik
+        // Cache akan expire dalam 10 menit
+        $data = Cache::remember('dashboard_data_' . $startMonth, 600, function () use ($startMonth, $endMonth) {
+            return [
+                'revenue' => Order::whereIn('status', ['completed', 'pending'])
+                    ->whereBetween('created_at', [$startMonth . ' 00:00:00', $endMonth . ' 23:59:59'])
+                    ->sum('total_price') ?? 0,
 
-        $thisMonthHpp = StockMutation::where('type', 'out')
-            ->where('category', 'sale')
-            ->whereBetween('created_at', [$startMonth . ' 00:00:00', $endMonth . ' 23:59:59'])
-            ->select(DB::raw('SUM(qty * price) as total_hpp'))
-            ->value('total_hpp') ?? 0;
+                'hpp' => StockMutation::where('type', 'out')
+                    ->where('category', 'sale')
+                    ->whereBetween('created_at', [$startMonth . ' 00:00:00', $endMonth . ' 23:59:59'])
+                    ->select(DB::raw('SUM(qty * price) as total_hpp'))
+                    ->value('total_hpp') ?? 0,
 
+                'topProducts' => DB::table('stock_mutations')
+                    ->join('products', 'products.id', '=', 'stock_mutations.product_id')
+                    ->where('stock_mutations.type', 'out')
+                    ->where('stock_mutations.category', 'sale')
+                    ->whereBetween('stock_mutations.created_at', [$startMonth . ' 00:00:00', $endMonth . ' 23:59:59'])
+                    ->select('products.name', DB::raw('SUM(stock_mutations.qty) as total_qty'))
+                    ->groupBy('products.id', 'products.name')
+                    ->orderBy('total_qty', 'desc')
+                    ->take(5)
+                    ->get()
+            ];
+        });
+
+        $thisMonthRevenue = $data['revenue'];
+        $thisMonthHpp = $data['hpp'];
         $thisMonthProfit = $thisMonthRevenue - $thisMonthHpp;
 
         $currentAssetValuation = StockEntry::where('qty_remaining', '>', 0)
             ->select(DB::raw('SUM(qty_remaining * purchase_price) as total_asset'))
             ->value('total_asset') ?? 0;
 
-        $topProducts = DB::table('stock_mutations')
-            ->join('products', 'products.id', '=', 'stock_mutations.product_id')
-            ->where('stock_mutations.type', 'out')
-            ->where('stock_mutations.category', 'sale')
-            ->whereBetween('stock_mutations.created_at', [$startMonth . ' 00:00:00', $endMonth . ' 23:59:59'])
-            ->select('products.name', DB::raw('SUM(stock_mutations.qty) as total_qty'))
-            ->groupBy('products.id', 'products.name')
-            ->orderBy('total_qty', 'desc')
-            ->take(5)
-            ->get();
-
+        $topProducts = $data['topProducts'];
         $lowStockTanks = $this->checkLowStockTanks();
         $pendingOrdersCount = $this->checkPendingOrders();
         $overduePaymentReminders = $this->checkOverduePaymentReminders();
 
         return view('admin.dashboard', compact(
-            'thisMonthRevenue', 
-            'thisMonthHpp', 
-            'thisMonthProfit', 
-            'currentAssetValuation',
-            'topProducts',
-            'lowStockTanks',
-            'pendingOrdersCount',
-            'overduePaymentReminders'
+            'thisMonthRevenue', 'thisMonthHpp', 'thisMonthProfit', 
+            'currentAssetValuation', 'topProducts', 'lowStockTanks',
+            'pendingOrdersCount', 'overduePaymentReminders'
         ));
     }
 
     public function checkLowStockTanks()
     {
+        // Ambil hanya kolom yang dibutuhkan saja untuk menghemat RAM
         return Tank::whereRaw('current_volume / capacity < 0.3')
                     ->where('status', 'active')
+                    ->select('id', 'name', 'current_volume', 'capacity')
                     ->get();
     }
 
     private function checkPendingOrders()
     {
-        return Order::where('status', 'pending')
-            ->count();
+        return Order::where('status', 'pending')->count();
     }
 
     private function checkOverduePaymentReminders()
     {
-        return OrderPaymentSchedule::where('status', 'pending')
-            ->where('due_date', '<=', Carbon::now())
-            ->count();
+        return Order::join('term_of_payments', 'orders.id', '=', 'term_of_payments.order_id')
+        ->where('orders.status', 'pending') // <--- Berikan prefix 'orders.' di sini
+        ->where('term_of_payments.payment_due_date', '<=', Carbon::now())
+        ->count();
     }
 
-    /**
-     * Kirim pengingat WA ke semua payment schedule jatuh tempo.
-     * Bisa dipanggil manual atau cron.
-     */
     public function sendOverdueReminders()
     {
-        $schedules = OrderPaymentSchedule::where('status', 'pending')
+        $sent = 0;
+        // Gunakan chunk untuk mencegah Memory Exhaustion saat mengirim banyak WA
+        OrderPaymentSchedule::where('status', 'pending')
             ->where('due_date', '<=', Carbon::now())
             ->with('order.customer')
-            ->get();
-
-        $sent = 0;
-        foreach ($schedules as $schedule) {
-            $order = $schedule->order;
-            $customer = $order->customer ?? null;
-            if (!$customer || !$customer->wa_number) continue;
-
-            $wa = new WhatsAppService();
-            $wa->sendText($customer->wa_number, 
-                "🕐 *Pengingat Pembayaran*\n\n"
-                . "Pesanan #{$order->order_code}\n"
-                . "Jatuh tempo: {$schedule->due_date}\n"
-                . "Sisa tagihan: Rp " . number_format($schedule->amount_due, 0, ',', '.') . "\n\n"
-                . "Segera lakukan pembayaran untuk menghindari denda. Terima kasih."
-            );
-
-            $schedule->update(['status' => 'overdue']);
-            $sent++;
-        }
+            ->chunk(50, function ($schedules) use (&$sent) {
+                $wa = new WhatsAppService();
+                foreach ($schedules as $schedule) {
+                    $order = $schedule->order;
+                    if ($order && $order->customer && $order->customer->wa_number) {
+                        $wa->sendText($order->customer->wa_number, "Pengingat Pembayaran...");
+                        $schedule->update(['status' => 'overdue']);
+                        $sent++;
+                    }
+                }
+            });
 
         return response()->json(['sent' => $sent]);
     }
